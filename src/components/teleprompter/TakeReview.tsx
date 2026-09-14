@@ -102,10 +102,10 @@ export function TakeReview({ take, loadBlob, onBack, onRetake, onKeep, onDownloa
     </div>
     <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(0,0,0,.84), transparent 28%, transparent 62%, rgba(0,0,0,.92))' }}/>
 
-    <header className="tp-take-review-topbar" style={{ position: 'absolute', top: 'max(52px, calc(env(safe-area-inset-top) + 42px))', left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+    <header className="tp-take-review-topbar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: 'max(8px, env(safe-area-inset-top)) 16px 8px' }}>
       <IconButton className="tp-review-top-back" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,.5)', color: '#fff', border: '1px solid rgba(255,255,255,.38)' }} label="Back to recording" onClick={onBack}><ArrowLeft size={20}/></IconButton>
       <div style={{ minWidth: 0, flex: 1 }}><span className="mono" style={{ display: 'block', fontSize: 10, opacity: .72, letterSpacing: '.08em' }}>REVIEW</span><strong style={{ display: 'block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 15 }}>{take.title || 'Recorded take'}</strong></div>
-      <Badge variant={state === 'error' || mediaRejected ? 'destructive' : 'outline'}>{state === 'loading' ? 'LOADING…' : state === 'ready' && !mediaRejected ? 'READY' : 'CHECK TAKE'}</Badge>
+      <Badge variant="outline" className="tp-step-badge">3 of 4</Badge><Badge variant={state === 'error' || mediaRejected ? 'destructive' : 'outline'}>{state === 'loading' ? 'LOADING…' : state === 'ready' && !mediaRejected ? 'READY' : 'CHECK TAKE'}</Badge>
       {onFavourite && <IconButton label={take.starred ? 'Remove favourite' : 'Favourite take'} onClick={() => onFavourite(!take.starred)}><Heart size={18} fill={take.starred ? 'currentColor' : 'none'}/></IconButton>}
     </header>
 

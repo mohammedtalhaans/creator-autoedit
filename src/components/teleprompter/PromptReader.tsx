@@ -16,6 +16,8 @@ export interface PromptReaderProps {
   onPlayingChange?: (playing: boolean) => void
   /** Increment to toggle the prompt from the camera control bar. */
   toggleRequest?: number
+  /** Recording uses the external capture bar for play/pause. */
+  hideControls?: boolean
 }
 
 function tokenClass(token: PromptToken, state: 'past' | 'current' | 'future', dim: boolean): string {
@@ -23,7 +25,15 @@ function tokenClass(token: PromptToken, state: 'past' | 'current' | 'future', di
   return `tp-token tp-${state}${dim && state !== 'current' ? ' tp-dimmed' : ''}${token.emphasis ? ' tp-emphasis' : ''}`
 }
 
-export function PromptReader({ script, settings, onCursorChange, compact = false, captureActive = false, onPlayingChange, toggleRequest = 0 }: PromptReaderProps) {
+function promptBackground(color: string, opacity: number): string {
+  const match = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (!match) return color
+  const hex = match[1].length === 3 ? match[1].split('').map((part) => part + part).join('') : match[1]
+  const channels = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16))
+  return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${Math.max(0, Math.min(1, opacity))})`
+}
+
+export function PromptReader({ script, settings, onCursorChange, compact = false, captureActive = false, onPlayingChange, toggleRequest = 0, hideControls = false }: PromptReaderProps) {
   const parsed = useMemo(() => parsePrompt(script.text), [script.text])
   const timing = useMemo(() => buildPromptTiming(parsed, settings, { includeCuePauses: settings.autoPause, densityTiming: settings.lineTiming }), [parsed, settings])
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -58,7 +68,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
   useEffect(() => {
     const id = window.requestAnimationFrame(() => scrollToToken(cursor, 'auto'))
     return () => window.cancelAnimationFrame(id)
-  }, [cursor, scrollToToken, settings.columnWidth, settings.fontFamily, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.margin, settings.marginLeft, settings.marginRight])
+  }, [cursor, scrollToToken, settings.columnWidth, settings.fontFamily, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.margin, settings.marginLeft, settings.marginRight, settings.windowHeight, settings.textAlign])
 
   const setPlayingState = useCallback((next: boolean) => {
     setPlaying(next)
@@ -137,6 +147,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
   const wordsSpoken = parsed.spokenTokens.slice(0, cursor).length
   const modeLabel = settings.mode === 'timed' ? 'TIMED PROMPT' : settings.mode === 'manual' ? 'MANUAL PROMPT' : 'FIXED PROMPT'
   const playLabel = playing ? 'Pause prompt' : settings.mode === 'manual' ? 'Start manual read' : 'Play prompt'
+  const backgroundColor = promptBackground(settings.backgroundColor, settings.backgroundOpacity)
   const readerStyle: CSSProperties = {
     '--tp-text': settings.textColor,
     '--tp-bg': settings.backgroundColor,
@@ -152,17 +163,22 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
     '--tp-offset': `calc((100% - var(--tp-column)) * (${(settings.horizontalPosition ?? .5) - .5}))`,
     '--tp-reading-line': `${settings.readingLine}%`,
     '--tp-opacity': settings.dimSurrounding ? '.34' : '1',
+    '--tp-window-height': `${Math.max(20, Math.min(65, settings.windowHeight ?? 34))}dvh`,
+    '--tp-align': settings.textAlign ?? 'left',
+    '--tp-mirror': settings.mirror ? -1 : 1,
+    backgroundColor,
     fontFamily: settings.fontFamily,
+    textAlign: settings.textAlign ?? 'left',
     fontWeight: settings.bold ? 650 : 450,
   } as CSSProperties
 
-  return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''}`}>
+  return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''} ${hideControls ? 'tp-reader-no-controls' : ''}`}>
     <div className="tp-reader-head">
       <div className="tp-reader-meta"><span className="tp-live-dot"/><span className="mono">{modeLabel}</span><span className="tp-divider"/><span>{parsed.words.toLocaleString()} spoken words</span></div>
       <div className="tp-reader-stats"><span className="mono">{formatDuration(timing.estimatedSeconds)}</span></div>
     </div>
     <div className="tp-reading-stage" style={readerStyle} onKeyDown={keyDown} tabIndex={0} role="region" aria-label="Teleprompter reader">
-      <div className="tp-reading-line" aria-hidden="true"><span/></div>
+      {settings.showReadingLine !== false && <div className="tp-reading-line" aria-hidden="true"><span/></div>}
       <div className="tp-script-scroll" ref={scrollRef}>
         <div className="tp-script-column">
           <div className="tp-anchor-spacer" aria-hidden="true"/>
@@ -188,14 +204,14 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
       </div>
       {!parsed.words && <div className="tp-empty-reader"><FileText size={18}/><strong>Your reading line will appear here.</strong><span>Paste a script in the Script step to begin.</span></div>}
     </div>
-    <div className="tp-reader-controls">
+    {!hideControls && <div className="tp-reader-controls">
       <div className="tp-transport">
         <IconButton label="Restart at the beginning" onClick={() => setPosition(0, 'smooth', true)}><RotateCcw size={17}/></IconButton>
         <Button className="tp-play" variant="primary" onClick={togglePlay} disabled={!parsed.words}>{playing ? <Pause size={17}/> : <Play size={17}/>} {playLabel}</Button>
         <span className="tp-transport-hint mono">SPACE · ARROWS TO MOVE</span>
         <span className="tp-position mono">{parsed.words ? `${Math.round((cursor / Math.max(1, parsed.words - 1)) * 100)}%` : '0%'}</span>
       </div>
-    </div>
+    </div>}
     <div className="tp-reader-footer"><span>{activeToken ? `Reading: “${activeToken.text}”` : 'Tap a word to set your start point.'}</span><span className="mono">{wordsSpoken} / {parsed.words} WORDS</span></div>
   </div>
 }

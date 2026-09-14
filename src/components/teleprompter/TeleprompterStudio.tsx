@@ -148,6 +148,13 @@ export function TeleprompterStudio({ onClose, onImportVideo, initialReviewTakeId
     }, 180)
   }, [active, recordingLibrary])
 
+  const updatePromptSettings = useCallback((patch: Partial<ScriptDocument['settings']>) => {
+    const next = { ...active, settings: { ...active.settings, ...patch }, updatedAt: Date.now() }
+    setScripts((current) => current.map((script) => script.id === active.id ? next : script))
+    window.clearTimeout(scriptSaveTimer.current)
+    void recordingLibrary.saveScript(next).then((saved) => setScripts((current) => current.map((script) => script.id === saved.id ? saved : script))).catch((saveError) => setError(saveError instanceof Error ? saveError.message : String(saveError)))
+  }, [active, recordingLibrary])
+
   const createScript = useCallback(() => {
     void recordingLibrary.saveScript(createScriptDocument('Untitled script', '', runtime.defaultPromptSettings())).then((script) => { setScripts((current) => [script, ...current]); setActiveId(script.id); setStep('script') }).catch((saveError) => setError(saveError instanceof Error ? saveError.message : String(saveError)))
   }, [recordingLibrary, runtime])
@@ -352,7 +359,7 @@ export function TeleprompterStudio({ onClose, onImportVideo, initialReviewTakeId
   const requestStorage = useCallback(() => { void recorder.requestPersistentStorage?.().then((granted) => setNotice(granted ? 'Persistent storage granted for the recording library.' : 'Storage persistence was not granted; download important takes.')).catch((storageError) => setError(storageError instanceof Error ? storageError.message : String(storageError))) }, [recorder])
   const testMic = useCallback(() => { void recorder.testMicrophone().then(() => setNotice('Microphone test complete.')).catch((micError) => setError(micError instanceof Error ? micError.message : String(micError))) }, [recorder])
 
-  const readerProps = { script: active, settings: active.settings, onCursorChange: (cursor: number) => updateScript({ cursor }), compact: true, captureActive: step === 'record' && snapshot.status === 'recording', onPlayingChange: setPromptPlaying }
+  const readerProps = { script: active, settings: active.settings, onCursorChange: (cursor: number) => updateScript({ cursor }), compact: true, hideControls: true, captureActive: step === 'record' && snapshot.status === 'recording', onPlayingChange: setPromptPlaying }
   const openPromptHistory = () => { setHistoryOpen((open) => !open); void refreshTakes() }
 
   if (loading) return <div className="tp-studio tp-loading"><Loader2 className="spin" size={20}/><span>Opening your script library…</span></div>
@@ -366,12 +373,11 @@ export function TeleprompterStudio({ onClose, onImportVideo, initialReviewTakeId
     </header>}
     {step === 'record' && null}
     {step === 'review' && null}
-    {(step === 'record' || step === 'review') && <div className="tp-fullscreen-progress" aria-label="Recording flow progress"><Stepper className="tp-progress" steps={FLOW_STEPS.map((item) => ({ ...item, disabled: true }))} current={step}/></div>}
     {error && step !== 'record' && step !== 'review' && <Alert className="tp-global-alert" title="Something needs attention" variant="destructive"><span>{error}</span><IconButton label="Dismiss error" onClick={() => setError('')}><X size={15}/></IconButton></Alert>}
     {notice && <div className="tp-global-notice" role="status"><Radio size={15}/><span>{notice}</span><IconButton label="Dismiss notification" onClick={() => setNotice('')}><X size={15}/></IconButton></div>}
 
     {step === 'script' && <main className="tp-studio-main tp-step-script"><ScriptPanel scripts={scripts} active={active} onSelect={(id) => setActiveId(id)} onChange={updateScript} onCreate={createScript} onDelete={deleteScript} onImport={importScript}/></main>}
-    {step === 'record' && <RecordPanel snapshot={snapshot} settings={captureSettings} script={active} reader={<PromptReader {...readerProps} toggleRequest={promptToggleRequest}/>} onBack={() => void navigateBack()} onSettingsChange={changeCaptureSettings} onOpen={openRecord} onStart={startRecording} onStop={stopRecording} onTestMic={testMic} onRequestStorage={requestStorage} onRecoveryDownload={() => void recorder.getRecoveryBlob?.().then((blob) => { if (!blob) throw new Error('No recovered media bytes are available yet.'); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${active.title || 'recovered-take'}.recovered.webm`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }).catch((downloadError) => setError(downloadError instanceof Error ? downloadError.message : String(downloadError)))} onSwitchCamera={() => { void recorder.switchCamera(captureSettings).then(() => setSnapshot({ ...recorder.getSnapshot() })).catch((switchError) => setError(switchError instanceof Error ? switchError.message : String(switchError))) }} recoveryAvailable={recoveryAvailable} onPromptToggle={() => setPromptToggleRequest((request) => request + 1)} promptPlaying={promptPlaying}/>}
+    {step === 'record' && <RecordPanel snapshot={snapshot} settings={captureSettings} script={active} reader={<PromptReader {...readerProps} toggleRequest={promptToggleRequest}/>} onBack={() => void navigateBack()} onSettingsChange={changeCaptureSettings} onPromptSettingsChange={updatePromptSettings} onOpen={openRecord} onStart={startRecording} onStop={stopRecording} onTestMic={testMic} onRequestStorage={requestStorage} onRecoveryDownload={() => void recorder.getRecoveryBlob?.().then((blob) => { if (!blob) throw new Error('No recovered media bytes are available yet.'); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${active.title || 'recovered-take'}.recovered.webm`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }).catch((downloadError) => setError(downloadError instanceof Error ? downloadError.message : String(downloadError)))} onSwitchCamera={() => { void recorder.switchCamera(captureSettings).then(() => setSnapshot({ ...recorder.getSnapshot() })).catch((switchError) => setError(switchError instanceof Error ? switchError.message : String(switchError))) }} recoveryAvailable={recoveryAvailable} onPromptToggle={() => setPromptToggleRequest((request) => request + 1)} promptPlaying={promptPlaying}/>}
     {step === 'review' && reviewTake && <TakeReview take={reviewTake} loadBlob={() => recordingLibrary.getTakeBlob(reviewTake.id)} onBack={backFromReview} onRetake={retakeReview} onKeep={keepReview} onDownload={() => void downloadTake(reviewTake)} onFavourite={favouriteReview}/>}
 
     {step === 'script' && <footer className="tp-flow-actions" aria-label="Script actions"><Button variant="ghost" onClick={onImportVideo} disabled={!onImportVideo}>Import video</Button><Button variant="primary" onClick={() => void continueScript()}>Continue<ArrowRight size={17}/></Button></footer>}

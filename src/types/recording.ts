@@ -1,10 +1,12 @@
-export type PromptMode = 'fixed' | 'voice' | 'timed' | 'manual';
+export type PromptMode = 'fixed' | 'timed' | 'manual';
 export interface PromptSettings {
   mode: PromptMode; wpm: number; targetSeconds: number; fontSize: number;
   fontFamily: string; bold: boolean; lineHeight: number; letterSpacing: number;
   columnWidth: number; margin: number; readingLine: number; textColor: string;
   /** Optional independent gutters/offset for camera-specific reading setups. */
   marginLeft?: number; marginRight?: number; horizontalPosition?: number;
+  /** Compact prompt-window and alignment controls used by the recording overlay. */
+  windowHeight: number; textAlign: 'left' | 'center'; showReadingLine: boolean;
   backgroundColor: string; backgroundOpacity: number; mirror: boolean;
   highContrast: boolean; dimSurrounding: boolean; autoPause: boolean;
   lineTiming: boolean; voiceSensitivity: number; punctuation: boolean;
@@ -19,6 +21,10 @@ export interface CaptureSettings {
   resolution: 720 | 1080 | 2160; fps: 24 | 25 | 30 | 50 | 60;
   /** Whether the requested/displayed recording orientation is vertical. */
   portrait: boolean; monitorAudio: boolean;
+  /** Preserve the entire source by default; fill is an explicit crop choice. */
+  framingMode: 'fit' | 'fill';
+  /** Auto follows decoded source/requested orientation; manual values override metadata. */
+  rotation: 'auto' | 0 | 90 | 270;
   controls: Record<string, string | number | boolean>;
 }
 export interface TakeRecord {

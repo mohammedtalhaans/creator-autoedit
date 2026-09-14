@@ -76,7 +76,7 @@ export function buildMediaConstraints(settings: CaptureSettings): MediaStreamCon
   const aspectRatio = settings.portrait ? 9 / 16 : 16 / 9;
   const video: MediaTrackConstraints = {
     ...size,
-    aspectRatio: { ideal: aspectRatio },
+    ...(settings.framingMode === 'fill' ? { aspectRatio: { ideal: aspectRatio } } : { resizeMode: { ideal: 'none' } }),
     frameRate: { ideal: settings.fps },
     facingMode: settings.cameraId ? undefined : { ideal: settings.facingMode },
     ...(settings.cameraId ? { deviceId: { exact: settings.cameraId } } : {}),
@@ -87,7 +87,100 @@ export function buildMediaConstraints(settings: CaptureSettings): MediaStreamCon
   return { video, audio };
 }
 
-type CaptureOrientation = 'portrait' | 'landscape' | 'unknown';
+export type CaptureOrientation = 'portrait' | 'landscape' | 'unknown';
+
+export interface CaptureTransformInput {
+  sourceWidth: number;
+  sourceHeight: number;
+  targetWidth: number;
+  targetHeight: number;
+  requestedPortrait: boolean;
+  rotation: CaptureSettings['rotation'];
+  framingMode: CaptureSettings['framingMode'];
+}
+
+export interface CaptureTransform {
+  rotation: 0 | 90 | 270;
+  scale: number;
+  drawWidth: number;
+  drawHeight: number;
+  offsetX: number;
+  offsetY: number;
+  offsets: { x: number; y: number };
+  contentRect: { x: number; y: number; width: number; height: number };
+  sourceWidth: number;
+  sourceHeight: number;
+  displayWidth: number;
+  displayHeight: number;
+  targetWidth: number;
+  targetHeight: number;
+  requestedPortrait: boolean;
+  framingMode: CaptureSettings['framingMode'];
+}
+
+function positiveDimension(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function resolvedRotation(rotation: CaptureSettings['rotation'], sourceWidth: number, sourceHeight: number, requestedPortrait: boolean): 0 | 90 | 270 {
+  if (rotation === 0 || rotation === 90 || rotation === 270) return rotation;
+  const sourcePortrait = sourceHeight > sourceWidth;
+  return sourcePortrait === requestedPortrait ? 0 : 90;
+}
+
+/**
+ * Resolve one deterministic source-to-canvas transform for both preview and
+ * MediaRecorder composition. Full view uses the entire source and centers
+ * letterbox bars; Fill covers the canvas and intentionally crops its edges.
+ */
+export function resolveCaptureTransform(input: CaptureTransformInput): CaptureTransform {
+  const sourceWidth = positiveDimension(input.sourceWidth, 1);
+  const sourceHeight = positiveDimension(input.sourceHeight, 1);
+  const targetWidth = positiveDimension(input.targetWidth, 1);
+  const targetHeight = positiveDimension(input.targetHeight, 1);
+  const requestedPortrait = Boolean(input.requestedPortrait);
+  const framingMode: CaptureSettings['framingMode'] = input.framingMode === 'fill' ? 'fill' : 'fit';
+  const rotation = resolvedRotation(input.rotation, sourceWidth, sourceHeight, requestedPortrait);
+  const quarterTurn = rotation === 90 || rotation === 270;
+  const displayWidth = quarterTurn ? sourceHeight : sourceWidth;
+  const displayHeight = quarterTurn ? sourceWidth : sourceHeight;
+  const scale = framingMode === 'fill'
+    ? Math.max(targetWidth / displayWidth, targetHeight / displayHeight)
+    : Math.min(targetWidth / displayWidth, targetHeight / displayHeight);
+  const drawWidth = displayWidth * scale;
+  const drawHeight = displayHeight * scale;
+  const offsetX = (targetWidth - drawWidth) / 2;
+  const offsetY = (targetHeight - drawHeight) / 2;
+  return {
+    rotation,
+    scale,
+    drawWidth,
+    drawHeight,
+    offsetX,
+    offsetY,
+    offsets: { x: offsetX, y: offsetY },
+    contentRect: { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight },
+    sourceWidth,
+    sourceHeight,
+    displayWidth,
+    displayHeight,
+    targetWidth,
+    targetHeight,
+    requestedPortrait,
+    framingMode,
+  };
+}
+
+/** Draw the resolved frame for both the live preview canvas and recording canvas. */
+export function drawCaptureFrame(context: CanvasRenderingContext2D, source: CanvasImageSource, transform: CaptureTransform): void {
+  context.save();
+  context.fillStyle = '#000';
+  context.fillRect(0, 0, transform.targetWidth, transform.targetHeight);
+  context.translate(transform.targetWidth / 2, transform.targetHeight / 2);
+  if (transform.rotation) context.rotate(transform.rotation * Math.PI / 180);
+  context.drawImage(source, -(transform.sourceWidth * transform.scale) / 2, -(transform.sourceHeight * transform.scale) / 2, transform.sourceWidth * transform.scale, transform.sourceHeight * transform.scale);
+  context.restore();
+}
 
 function normalizeRotation(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
@@ -109,6 +202,23 @@ function orientationFromDimensions(width: unknown, height: unknown, rotation?: n
 function numberSetting(settings: Record<string, unknown>, key: string): number | undefined {
   const value = settings[key];
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** Return the same transform used by the canvas compositor for a live preview. */
+export function previewTransform(settings: CaptureSettings, actualSettings: Record<string, unknown>, videoWidth: number, videoHeight: number): CaptureTransform {
+  const actualVideo = (actualSettings.video ?? {}) as Record<string, unknown>;
+  const sourceWidth = positiveDimension(videoWidth, numberSetting(actualVideo, 'sourceWidth') ?? numberSetting(actualVideo, 'width') ?? 1);
+  const sourceHeight = positiveDimension(videoHeight, numberSetting(actualVideo, 'sourceHeight') ?? numberSetting(actualVideo, 'height') ?? 1);
+  const dimensions = requestedDimensions(settings);
+  return resolveCaptureTransform({
+    sourceWidth,
+    sourceHeight,
+    targetWidth: dimensions.width,
+    targetHeight: dimensions.height,
+    requestedPortrait: settings.portrait,
+    rotation: settings.rotation ?? 'auto',
+    framingMode: settings.framingMode ?? 'fit',
+  });
 }
 
 export function trackSettings(stream: MediaStream): Record<string, unknown> {
@@ -168,27 +278,6 @@ function requestedDimensions(settings: CaptureSettings): { width: number; height
     : { width: longEdge, height: shortEdge };
 }
 
-function displayRotation(): number | undefined {
-  if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.angle === 'number') {
-    return normalizeRotation(screen.orientation.angle);
-  }
-  if (typeof window !== 'undefined') {
-    const legacyAngle = (window as unknown as { orientation?: unknown }).orientation;
-    return normalizeRotation(legacyAngle);
-  }
-  return undefined;
-}
-
-function sourceOrientation(actualSettings: Record<string, unknown>): CaptureOrientation {
-  const video = (actualSettings.video ?? {}) as Record<string, unknown>;
-  const width = numberSetting(video, 'width');
-  const height = numberSetting(video, 'height');
-  const rotation = normalizeRotation(video.rotation);
-  const metadataOrientation = video.displayOrientation ?? video.orientation;
-  if (metadataOrientation === 'portrait' || metadataOrientation === 'landscape') return metadataOrientation;
-  return orientationFromDimensions(width, height, rotation);
-}
-
 function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
   if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
   return new Promise((resolve) => {
@@ -208,23 +297,72 @@ function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
   });
 }
 
-/**
- * Compose a stream only when the negotiated source orientation disagrees with
- * the requested display orientation. The source audio track is reused as-is;
- * only the video track is replaced by the canvas track.
- */
-async function createOrientationComposition(source: MediaStream, settings: CaptureSettings, actualSettings: Record<string, unknown>): Promise<OrientationComposition | null> {
+function needsCanvasComposition(settings: CaptureSettings, sourceWidth: number | undefined, sourceHeight: number | undefined): boolean {
+  if (!sourceWidth || !sourceHeight) return true;
+  const dimensions = requestedDimensions(settings);
+  const transform = resolveCaptureTransform({
+    sourceWidth,
+    sourceHeight,
+    targetWidth: dimensions.width,
+    targetHeight: dimensions.height,
+    requestedPortrait: settings.portrait,
+    rotation: settings.rotation ?? 'auto',
+    framingMode: settings.framingMode ?? 'fit',
+  });
+  // A native track is already the desired output only when Full view, no
+  // rotation, and exact target dimensions are all true. Otherwise compose so
+  // the preview and recording share a real, deterministic canvas.
+  return !(transform.framingMode === 'fit' && transform.rotation === 0 && sourceWidth === dimensions.width && sourceHeight === dimensions.height);
+}
+
+function transformedActualSettings(actualSettings: Record<string, unknown>, settings: CaptureSettings, transform: CaptureTransform, sourceWidth: number, sourceHeight: number, composed: boolean, unavailable = false): Record<string, unknown> {
+  const nativeVideo = (actualSettings.video ?? {}) as Record<string, unknown>;
+  const nativeOrientation = orientationFromDimensions(sourceWidth, sourceHeight);
+  const requestedOrientation: CaptureOrientation = settings.portrait ? 'portrait' : 'landscape';
+  const targetWidth = composed ? transform.targetWidth : sourceWidth;
+  const targetHeight = composed ? transform.targetHeight : sourceHeight;
+  const contentRect = composed
+    ? transform.contentRect
+    : { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+  return {
+    ...actualSettings,
+    video: {
+      ...nativeVideo,
+      sourceWidth,
+      sourceHeight,
+      width: targetWidth,
+      height: targetHeight,
+      displayWidth: targetWidth,
+      displayHeight: targetHeight,
+      aspectRatio: targetWidth / targetHeight,
+      rotation: composed ? transform.rotation : 0,
+      requestedRotation: transform.rotation,
+      framingMode: settings.framingMode ?? 'fit',
+      contentRect,
+      orientation: composed ? requestedOrientation : nativeOrientation,
+      displayOrientation: composed ? requestedOrientation : nativeOrientation,
+      composed,
+      ...(composed ? { composition: 'canvas-transform' } : {}),
+      ...(unavailable ? {
+        requestedOrientation,
+        orientationMismatch: nativeOrientation !== requestedOrientation,
+        compositionUnavailable: true,
+      } : {}),
+    },
+  };
+}
+
+/** Compose a stream when rotation, framing, or target dimensions need a real canvas. */
+async function createCaptureComposition(source: MediaStream, settings: CaptureSettings, actualSettings: Record<string, unknown>): Promise<OrientationComposition | null> {
   if (typeof document === 'undefined' || typeof window === 'undefined' || typeof MediaStream === 'undefined') return null;
   const sourceVideo = source.getVideoTracks()[0];
   const sourceAudio = source.getAudioTracks();
   if (!sourceVideo || sourceAudio.length === 0) return null;
 
-  const orientation = sourceOrientation(actualSettings);
-  const requestedOrientation: CaptureOrientation = settings.portrait ? 'portrait' : 'landscape';
-  // If metadata is conclusive and already agrees, let MediaRecorder retain the
-  // native stream. Unknown metadata is composed when the browser supports it so
-  // portrait output remains verifiable rather than relying on CSS alone.
-  if (orientation === requestedOrientation) return null;
+  const sourceVideoSettings = (actualSettings.video ?? {}) as Record<string, unknown>;
+  const initialWidth = numberSetting(sourceVideoSettings, 'width');
+  const initialHeight = numberSetting(sourceVideoSettings, 'height');
+  if (!needsCanvasComposition(settings, initialWidth, initialHeight)) return null;
 
   const canvas = document.createElement('canvas');
   if (typeof canvas.captureStream !== 'function') return null;
@@ -242,13 +380,20 @@ async function createOrientationComposition(source: MediaStream, settings: Captu
   video.srcObject = source;
   document.body?.appendChild(video);
 
+  type FrameVideo = HTMLVideoElement & {
+    requestVideoFrameCallback?: (callback: (now: number, metadata: Record<string, unknown>) => void) => number;
+    cancelVideoFrameCallback?: (handle: number) => void;
+  };
+  const frameVideo = video as FrameVideo;
   let frameHandle: number | null = null;
+  let animationHandle: number | null = null;
   let cancelled = false;
   let composedStream: MediaStream | null = null;
   const cleanup = () => {
     if (cancelled) return;
     cancelled = true;
-    if (frameHandle !== null) window.cancelAnimationFrame(frameHandle);
+    if (frameHandle !== null) frameVideo.cancelVideoFrameCallback?.(frameHandle);
+    if (animationHandle !== null) window.cancelAnimationFrame(animationHandle);
     try { video.pause(); } catch { /* already stopped */ }
     video.srcObject = null;
     video.remove();
@@ -260,9 +405,22 @@ async function createOrientationComposition(source: MediaStream, settings: Captu
   try {
     await video.play();
     await waitForVideoMetadata(video);
-    const sourceWidth = video.videoWidth || numberSetting((actualSettings.video ?? {}) as Record<string, unknown>, 'width') || 640;
-    const sourceHeight = video.videoHeight || numberSetting((actualSettings.video ?? {}) as Record<string, unknown>, 'height') || 360;
+    const sourceWidth = video.videoWidth || initialWidth || 640;
+    const sourceHeight = video.videoHeight || initialHeight || 360;
+    if (!needsCanvasComposition(settings, sourceWidth, sourceHeight)) {
+      cleanup();
+      return null;
+    }
     const dimensions = requestedDimensions(settings);
+    const transform = resolveCaptureTransform({
+      sourceWidth,
+      sourceHeight,
+      targetWidth: dimensions.width,
+      targetHeight: dimensions.height,
+      requestedPortrait: settings.portrait,
+      rotation: settings.rotation ?? 'auto',
+      framingMode: settings.framingMode ?? 'fit',
+    });
     canvas.width = dimensions.width;
     canvas.height = dimensions.height;
     const context = canvas.getContext('2d');
@@ -270,26 +428,30 @@ async function createOrientationComposition(source: MediaStream, settings: Captu
       cleanup();
       return null;
     }
-
-    const actualVideo = (actualSettings.video ?? {}) as Record<string, unknown>;
-    const sourceRotation = normalizeRotation(actualVideo.rotation) ?? displayRotation() ?? 0;
-    const quarterTurn = sourceRotation === 90 || sourceRotation === 270;
-    const displaySourceWidth = quarterTurn ? sourceHeight : sourceWidth;
-    const displaySourceHeight = quarterTurn ? sourceWidth : sourceHeight;
-    const scale = Math.max(dimensions.width / displaySourceWidth, dimensions.height / displaySourceHeight);
     const drawFrame = () => {
       if (cancelled) return;
-      context.save();
-      context.clearRect(0, 0, dimensions.width, dimensions.height);
-      context.translate(dimensions.width / 2, dimensions.height / 2);
-      if (sourceRotation) context.rotate(sourceRotation * Math.PI / 180);
-      const drawWidth = sourceWidth * scale;
-      const drawHeight = sourceHeight * scale;
-      context.drawImage(video, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-      context.restore();
-      frameHandle = window.requestAnimationFrame(drawFrame);
+      drawCaptureFrame(context, video, transform);
+    };
+    const scheduleFrame = () => {
+      if (cancelled) return;
+      if (typeof frameVideo.requestVideoFrameCallback === 'function') {
+        try {
+          frameHandle = frameVideo.requestVideoFrameCallback(() => {
+            frameHandle = null;
+            drawFrame();
+            scheduleFrame();
+          });
+          return;
+        } catch { /* Fall through to rAF for partial browser implementations. */ }
+      }
+      animationHandle = window.requestAnimationFrame(() => {
+        animationHandle = null;
+        drawFrame();
+        scheduleFrame();
+      });
     };
     drawFrame();
+    scheduleFrame();
 
     composedStream = canvas.captureStream(settings.fps);
     const composedVideo = composedStream.getVideoTracks()[0];
@@ -300,28 +462,9 @@ async function createOrientationComposition(source: MediaStream, settings: Captu
     // Do not clone or route the audio through Web Audio: the original track is
     // kept in the composed stream so microphone bytes stay native.
     const recordingStream = new MediaStream([composedVideo, ...sourceAudio]);
-    const sourceVideoSettings = { ...actualVideo };
-    const composedVideoSettings: Record<string, unknown> = {
-      ...sourceVideoSettings,
-      sourceWidth,
-      sourceHeight,
-      sourceAspectRatio: sourceWidth / sourceHeight,
-      width: dimensions.width,
-      height: dimensions.height,
-      displayWidth: dimensions.width,
-      displayHeight: dimensions.height,
-      aspectRatio: dimensions.width / dimensions.height,
-      orientation: requestedOrientation,
-      displayOrientation: requestedOrientation,
-      composed: true,
-      composition: 'canvas-orientation',
-    };
     return {
       stream: recordingStream,
-      actualSettings: {
-        video: composedVideoSettings,
-        audio: { ...((actualSettings.audio ?? {}) as Record<string, unknown>) },
-      },
+      actualSettings: transformedActualSettings(actualSettings, settings, transform, sourceWidth, sourceHeight, true),
       cleanup,
     };
   } catch {
@@ -444,8 +587,22 @@ class RecorderEngine implements Recorder {
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error) {
-      this.emit({ status: 'error', error: `Camera and microphone access failed: ${errorMessage(error)}`, notice: 'Check browser permissions and device availability, then retry.' });
-      throw error;
+      // A few older browsers reject the standard resizeMode hint even though
+      // they can satisfy the rest of the Full view request. Retry once without
+      // that hint, then expose the original permission/device error.
+      if (settings.framingMode !== 'fill' && constraints.video && typeof constraints.video === 'object') {
+        const fallbackVideo = { ...constraints.video } as MediaTrackConstraints & { resizeMode?: unknown };
+        delete fallbackVideo.resizeMode;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ ...constraints, video: fallbackVideo });
+        } catch (fallbackError) {
+          this.emit({ status: 'error', error: `Camera and microphone access failed: ${errorMessage(fallbackError)}`, notice: 'Check browser permissions and device availability, then retry.' });
+          throw fallbackError;
+        }
+      } else {
+        this.emit({ status: 'error', error: `Camera and microphone access failed: ${errorMessage(error)}`, notice: 'Check browser permissions and device availability, then retry.' });
+        throw error;
+      }
     }
 
     const videoTracks = stream.getVideoTracks();
@@ -549,37 +706,48 @@ class RecorderEngine implements Recorder {
     await saveCaptureSettings(this.settings);
     const sourceStream = this.stream!;
     const nativeActualSettings = trackSettings(sourceStream);
+    const nativeVideo = (nativeActualSettings.video ?? {}) as Record<string, unknown>;
+    const sourceWidth = numberSetting(nativeVideo, 'width');
+    const sourceHeight = numberSetting(nativeVideo, 'height');
+    const targetDimensions = requestedDimensions(this.settings);
+    const nativeTransform = resolveCaptureTransform({
+      sourceWidth: sourceWidth ?? targetDimensions.width,
+      sourceHeight: sourceHeight ?? targetDimensions.height,
+      targetWidth: targetDimensions.width,
+      targetHeight: targetDimensions.height,
+      requestedPortrait: this.settings.portrait,
+      rotation: this.settings.rotation ?? 'auto',
+      framingMode: this.settings.framingMode ?? 'fit',
+    });
     let recordingStream = sourceStream;
-    let recordingActualSettings = nativeActualSettings;
+    let recordingActualSettings = sourceWidth && sourceHeight
+      ? transformedActualSettings(nativeActualSettings, this.settings, nativeTransform, sourceWidth, sourceHeight, false)
+      : nativeActualSettings;
     const requestedOrientation: CaptureOrientation = this.settings.portrait ? 'portrait' : 'landscape';
-    const nativeOrientation = sourceOrientation(nativeActualSettings);
-    if (nativeOrientation !== requestedOrientation) {
-      const composition = await createOrientationComposition(sourceStream, this.settings, nativeActualSettings);
+    if (needsCanvasComposition(this.settings, sourceWidth, sourceHeight)) {
+      const composition = await createCaptureComposition(sourceStream, this.settings, nativeActualSettings);
       if (composition) {
         recordingStream = composition.stream;
         recordingActualSettings = composition.actualSettings;
         this.recordingStream = composition.stream;
         this.recordingCleanup = composition.cleanup;
-        this.emit({ actualSettings: recordingActualSettings, notice: 'Camera sensor orientation corrected for this take.' });
+        this.emit({ actualSettings: recordingActualSettings, notice: 'Camera view prepared for this take.' });
       } else {
         // Keep the native stream when canvas capture is unavailable (notably
         // some iOS browser versions), and expose its real axis to the review
         // and editor instead of claiming a portrait result.
-        const nativeVideo = (nativeActualSettings.video ?? {}) as Record<string, unknown>;
-        recordingActualSettings = {
-          ...nativeActualSettings,
-          video: {
-            ...nativeVideo,
-            requestedOrientation,
-            orientationMismatch: true,
-            compositionUnavailable: true,
-          },
-        };
+        recordingActualSettings = sourceWidth && sourceHeight
+          ? transformedActualSettings(nativeActualSettings, this.settings, nativeTransform, sourceWidth, sourceHeight, false, true)
+          : {
+            ...nativeActualSettings,
+            video: { ...nativeVideo, requestedOrientation, framingMode: this.settings.framingMode ?? 'fit', compositionUnavailable: true, composed: false },
+          };
         this.emit({ actualSettings: recordingActualSettings, notice: 'This browser cannot compose a rotated camera stream; the native camera orientation will be kept.' });
       }
     } else {
       this.recordingStream = sourceStream;
       this.recordingCleanup = null;
+      this.emit({ actualSettings: recordingActualSettings });
     }
     const requestedMime = chooseRecordingMimeType();
     let media: MediaRecorder;
@@ -785,9 +953,9 @@ class RecorderEngine implements Recorder {
   }
 
   private async applySettingsInternal(patch: Partial<CaptureSettings>): Promise<void> {
-    const switchingKeys: Array<keyof CaptureSettings> = ['cameraId', 'microphoneId', 'facingMode', 'resolution', 'fps', 'portrait'];
+    const switchingKeys: Array<keyof CaptureSettings> = ['cameraId', 'microphoneId', 'facingMode', 'resolution', 'fps', 'portrait', 'framingMode', 'rotation'];
     if (this.currentTakeId && switchingKeys.some((key) => patch[key] !== undefined))
-      throw new Error('Stop the current take before changing camera, microphone, orientation, resolution, or frame rate.');
+      throw new Error('Stop the current take before changing camera, microphone, orientation, framing, resolution, or frame rate.');
     const next = cloneCaptureSettings({ ...this.settings, ...patch, controls: { ...this.settings.controls, ...(patch.controls ?? {}) } });
     if (this.stream && patch.controls) await this.applyTrackControls(patch.controls);
     await saveCaptureSettings(next);

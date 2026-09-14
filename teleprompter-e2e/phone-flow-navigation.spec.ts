@@ -39,6 +39,19 @@ test.describe('phone first Script to Record to Review flow', () => {
       const video = document.querySelector('video[aria-label="Camera preview"]') as HTMLVideoElement | null;
       return Boolean(video?.srcObject && video.videoWidth > 0 && video.videoHeight > 0);
     }, undefined, { timeout: 20_000 });
+    await page.waitForFunction(() => Boolean(document.querySelector('canvas[aria-label="Camera preview image"]')?.getAttribute('data-content-rect')));
+    const cameraFrame = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas[aria-label="Camera preview image"]') as HTMLCanvasElement | null;
+      const content = canvas?.getAttribute('data-content-rect');
+      return { rect: canvas?.getBoundingClientRect(), targetWidth: canvas?.width ?? 0, targetHeight: canvas?.height ?? 0, framingMode: canvas?.dataset.framingMode ?? '', content: content ? JSON.parse(content) as { x: number; y: number; width: number; height: number } : null };
+    });
+    expect(cameraFrame.framingMode).toBe('fit');
+    expect(cameraFrame.rect?.width ?? 0).toBeGreaterThan(0);
+    expect(cameraFrame.rect?.height ?? 0).toBeGreaterThan(0);
+    expect(cameraFrame.content?.x ?? -1).toBeGreaterThanOrEqual(-1);
+    expect(cameraFrame.content?.y ?? -1).toBeGreaterThanOrEqual(-1);
+    expect((cameraFrame.content?.x ?? 0) + (cameraFrame.content?.width ?? 0)).toBeLessThanOrEqual(cameraFrame.targetWidth + 1);
+    expect((cameraFrame.content?.y ?? 0) + (cameraFrame.content?.height ?? 0)).toBeLessThanOrEqual(cameraFrame.targetHeight + 1);
     mediaCalls.push(...await page.evaluate(() => (window as typeof window & { __phoneFlowMediaCalls?: unknown[] }).__phoneFlowMediaCalls ?? []));
     expect(mediaCalls.length).toBeGreaterThan(0);
     const recordGeometry = await page.evaluate(() => ({
@@ -53,14 +66,68 @@ test.describe('phone first Script to Record to Review flow', () => {
     const promptGeometry = await page.evaluate(() => {
       const token = document.querySelector('.tp-reader-compact .tp-token');
       const overlay = document.querySelector('.tp-record-reader-overlay');
-      const video = document.querySelector('video[aria-label="Camera preview"]');
+      const video = document.querySelector('canvas[aria-label="Camera preview image"]');
       return { tokenHeight: token?.getBoundingClientRect().height ?? 0, overlay: overlay?.getBoundingClientRect(), video: video?.getBoundingClientRect() };
     });
     expect(promptGeometry.tokenHeight).toBeGreaterThanOrEqual(40);
     expect(promptGeometry.overlay?.width ?? 0).toBeLessThanOrEqual(promptGeometry.video?.width ?? 0);
     await page.setViewportSize({ width: 390, height: 844 });
 
+    await page.screenshot({ path: resolve(evidenceDir, 'record-fov-390x844.png'), fullPage: false });
+    await page.screenshot({ path: resolve(evidenceDir, 'record-normal-view.png'), fullPage: false });
     await page.getByRole('button', { name: 'Start recording', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Stop and save recording', exact: true })).toBeVisible();
+    await page.waitForTimeout(300);
+    const captureBeforePromptEdit = await page.evaluate(() => {
+      const video = document.querySelector('video[aria-label="Camera preview"]') as HTMLVideoElement | null;
+      const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;
+      return { trackId: video?.srcObject?.getVideoTracks()[0]?.id ?? '', elapsed: document.querySelector('.tp-record-timer')?.textContent ?? '', size: stage ? getComputedStyle(stage).getPropertyValue('--tp-size').trim() : '' };
+    });
+    await page.getByRole('button', { name: 'Open prompt controls', exact: true }).click();
+    const promptDialog = page.getByRole('dialog', { name: 'Prompt controls', exact: true });
+    await expect(promptDialog).toBeVisible();
+    for (const label of ['Speed', 'Text size', 'Reading line', 'Prompt window', 'Column width', 'Horizontal position', 'Line height', 'Background opacity']) await expect(promptDialog.getByRole('slider', { name: label, exact: true })).toBeVisible();
+    await expect(promptDialog.getByText('Text alignment', { exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Dim surrounding text', exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Show reading line', exact: true })).toBeVisible();
+    const promptGeometryBefore = await page.evaluate(() => {
+      const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;
+      const column = document.querySelector('.tp-reader-compact .tp-script-column') as HTMLElement | null;
+      if (!stage || !column) return null;
+      const stageStyle = getComputedStyle(stage);
+      const columnRect = column.getBoundingClientRect();
+      return { height: stageStyle.height, background: stageStyle.backgroundColor, width: columnRect.width, left: columnRect.left, line: document.querySelectorAll('.tp-reader-compact .tp-reading-line').length };
+    });
+    await promptDialog.getByRole('slider', { name: 'Text size', exact: true }).press('ArrowRight');
+    await expect.poll(() => page.evaluate(() => (document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null)?.style.getPropertyValue('--tp-size').trim() ?? '')).not.toBe(captureBeforePromptEdit.size);
+    await promptDialog.getByRole('slider', { name: 'Background opacity', exact: true }).press('ArrowRight');
+    await promptDialog.getByRole('slider', { name: 'Prompt window', exact: true }).press('ArrowRight');
+    await promptDialog.getByRole('slider', { name: 'Column width', exact: true }).press('ArrowRight');
+    await promptDialog.getByRole('slider', { name: 'Horizontal position', exact: true }).press('ArrowRight');
+    await expect.poll(() => page.evaluate(() => {
+      const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;
+      const column = document.querySelector('.tp-reader-compact .tp-script-column') as HTMLElement | null;
+      if (!stage || !column) return null;
+      const columnRect = column.getBoundingClientRect();
+      return { height: getComputedStyle(stage).height, background: getComputedStyle(stage).backgroundColor, width: columnRect.width, left: columnRect.left };
+    })).not.toEqual(promptGeometryBefore && { height: promptGeometryBefore.height, background: promptGeometryBefore.background, width: promptGeometryBefore.width, left: promptGeometryBefore.left });
+    await promptDialog.getByRole('button', { name: 'Center', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.tp-reader-compact .tp-script-column') as HTMLElement).textAlign)).toBe('center');
+    await promptDialog.getByRole('button', { name: 'Left', exact: true }).click();
+    await promptDialog.getByRole('switch', { name: 'Show reading line', exact: true }).click();
+    await expect(page.locator('.tp-reader-compact .tp-reading-line')).toHaveCount(0);
+    await page.waitForTimeout(1_200);
+    const captureAfterPromptEdit = await page.evaluate(() => {
+      const video = document.querySelector('video[aria-label="Camera preview"]') as HTMLVideoElement | null;
+      return { trackId: video?.srcObject?.getVideoTracks()[0]?.id ?? '', elapsed: document.querySelector('.tp-record-timer')?.textContent ?? '' };
+    });
+    expect(captureAfterPromptEdit.trackId).toBe(captureBeforePromptEdit.trackId);
+    expect(captureAfterPromptEdit.elapsed).toMatch(/^\d+:\d\d$/);
+    await expect(page.getByRole('button', { name: 'Stop and save recording', exact: true })).toBeVisible();
+    await page.screenshot({ path: resolve(evidenceDir, 'record-prompt-controls-390x844.png'), fullPage: false });
+    await page.screenshot({ path: resolve(evidenceDir, 'record-prompt-controls.png'), fullPage: false });
+    await promptDialog.getByRole('button', { name: 'Close prompt controls', exact: true }).click();
+    await expect(promptDialog).toBeHidden();
     await page.waitForTimeout(1_200);
     await page.getByRole('button', { name: 'Stop and save recording', exact: true }).click();
     await expect(page.locator('.tp-take-review')).toBeVisible({ timeout: 45_000 });
@@ -83,7 +150,15 @@ test.describe('phone first Script to Record to Review flow', () => {
     await page.getByRole('button', { name: 'Keep & continue', exact: true }).click();
     await expect(page.locator('.editor-shell')).toBeVisible({ timeout: 60_000 });
     await page.screenshot({ path: resolve(evidenceDir, 'editor-cut-390x844.png'), fullPage: true });
-    const firstCut = page.locator('.cut-card').first();
+    const cutCards = page.locator('.cut-card');
+    const cutCount = await cutCards.count();
+    let usableCutIndex = -1;
+    for (let index = 0; index < cutCount; index += 1) {
+      const value = await cutCards.nth(index).locator('.cut-adjustment-value').innerText();
+      if (value !== '00:00.00') { usableCutIndex = index; break; }
+    }
+    expect(usableCutIndex).toBeGreaterThanOrEqual(0);
+    const firstCut = cutCards.nth(usableCutIndex);
     await expect(firstCut.locator('.cut-stepper')).toHaveCount(2);
     for (const label of ['Keep less before', 'Keep more before', 'Keep less after', 'Keep more after']) {
       await expect(firstCut.locator(`button[aria-label="${label}"]`)).toBeVisible();

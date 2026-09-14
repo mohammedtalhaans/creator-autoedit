@@ -155,9 +155,9 @@ export function Slider({ label, value, onChange, min = 0, max = 1, step = .01, d
     return (
         <div className={cn('origin-slider-field slider-field', disabled && 'is-disabled', className)}>
             <div className="origin-field-label-row field-label"><label id={id}>{label}</label><output className="mono">{display ?? value}</output></div>
-            <SliderPrimitive.Root className="origin-slider slider" aria-labelledby={id} value={[value]} onValueChange={([next]) => next !== undefined && onChange(next)} min={min} max={max} step={step} disabled={disabled}>
+            <SliderPrimitive.Root className="origin-slider slider" aria-label={label} aria-labelledby={id} value={[value]} onValueChange={([next]) => next !== undefined && onChange(next)} min={min} max={max} step={step} disabled={disabled}>
                 <SliderPrimitive.Track className="origin-slider-track slider-track"><SliderPrimitive.Range className="origin-slider-range slider-range" /></SliderPrimitive.Track>
-                <SliderPrimitive.Thumb className="origin-slider-thumb slider-thumb" aria-valuetext={display ?? String(value)} />
+                <SliderPrimitive.Thumb className="origin-slider-thumb slider-thumb" aria-label={label} aria-valuetext={display ?? String(value)} />
             </SliderPrimitive.Root>
             {help && <p className="origin-field-help">{help}</p>}
         </div>
