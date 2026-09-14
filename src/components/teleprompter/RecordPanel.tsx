@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Sun, Type, Video, Volume2, Zap } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Type, Video, Volume2, X, Zap } from 'lucide-react'
 import type { CaptureSettings, PromptSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording'
 import { drawCaptureFrame, measureDrawnFrame, previewTransform, type DrawnFrameDimensions } from '../../features/recording/capture'
 import { Alert, Badge, BottomSheet, Button, IconButton, NativeSelect, Slider, Switch } from '../ui/primitives'
@@ -63,6 +63,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
   const actionBusyRef = useRef(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [promptSettingsOpen, setPromptSettingsOpen] = useState(false)
+  const [lightControlsOpen, setLightControlsOpen] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [micTesting, setMicTesting] = useState(false)
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 })
@@ -81,7 +82,8 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
   const resolution = useMemo(() => formatResolution(settings), [settings])
   const framingMode = settings.framingMode ?? 'fill'
   const rotation = settings.rotation ?? 'auto'
-  const screenLightColor = settings.screenLightTone === 'warm' ? '255, 221, 178' : settings.screenLightTone === 'cool' ? '214, 235, 255' : '255, 255, 255'
+  const screenLightColor = settings.screenLightTone === 'warm' ? '255, 225, 166' : settings.screenLightTone === 'cool' ? '205, 242, 255' : '255, 255, 255'
+  const screenLightToneLabel = settings.screenLightTone === 'warm' ? 'Warm' : settings.screenLightTone === 'cool' ? 'Cool' : 'Neutral'
 
   useEffect(() => {
     const video = videoRef.current
@@ -186,12 +188,24 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
 
     {reader && <div className="tp-record-reader-overlay" style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>{reader}</div>}
     <div className="tp-record-prompt-tools" role="group" aria-label="On-screen recording controls">
-      <IconButton label={settings.screenLight ? 'Turn screen light off' : 'Turn screen light on'} onClick={() => onSettingsChange({ screenLight: !settings.screenLight })}><Sun size={18} fill={settings.screenLight ? 'currentColor' : 'none'}/></IconButton>
+      <IconButton label="Open front flash controls" aria-expanded={lightControlsOpen} onClick={() => { setLightControlsOpen((open) => !open); setPromptSettingsOpen(false) }}><Zap size={18} fill={settings.screenLight ? 'currentColor' : 'none'}/></IconButton>
       <IconButton label={script.settings.showPrompt === false ? 'Show transcript' : 'Hide transcript'} onClick={() => onPromptSettingsChange({ showPrompt: script.settings.showPrompt === false })}>{script.settings.showPrompt === false ? <Eye size={18}/> : <EyeOff size={18}/>}</IconButton>
       <IconButton label="Make transcript smaller" onClick={() => onPromptSettingsChange({ fontSize: Math.max(20, script.settings.fontSize - 4) })} disabled={script.settings.fontSize <= 20}><Minus size={17}/></IconButton>
       <span className="mono" aria-live="polite">{script.settings.fontSize}</span>
       <IconButton label="Make transcript larger" onClick={() => onPromptSettingsChange({ fontSize: Math.min(112, script.settings.fontSize + 4) })} disabled={script.settings.fontSize >= 112}><Plus size={17}/></IconButton>
     </div>
+    {lightControlsOpen && settings.facingMode === 'user' && <section className="tp-flash-widget" role="dialog" aria-modal="false" aria-label="Screen light controls">
+      <header><div><strong>Flash</strong><span>{settings.screenLight ? screenLightToneLabel : 'Off'}</span></div><IconButton label="Close screen light controls" onClick={() => setLightControlsOpen(false)}><X size={17}/></IconButton></header>
+      <Switch label="Ring light" checked={settings.screenLight} onChange={(screenLight) => onSettingsChange({ screenLight })}/>
+      <div className="tp-flash-swatches" role="group" aria-label="Ring light color">
+        {([
+          ['neutral', 'Neutral', '#ffffff'],
+          ['warm', 'Warm', '#ffe1a6'],
+          ['cool', 'Cool', '#cdf2ff'],
+        ] as const).map(([tone, label, color]) => <button key={tone} type="button" className={settings.screenLightTone === tone ? 'is-selected' : ''} aria-label={`${label} screen light`} aria-pressed={settings.screenLightTone === tone} onClick={() => onSettingsChange({ screenLight: true, screenLightTone: tone })}><span style={{ background: color }}/></button>)}
+      </div>
+      <Slider className="tp-flash-intensity" label="Intensity" value={settings.screenLightIntensity ?? .72} min={.2} max={1} step={.02} display={`${Math.round((settings.screenLightIntensity ?? .72) * 100)}%`} disabled={!settings.screenLight} onChange={(screenLightIntensity) => onSettingsChange({ screenLightIntensity })}/>
+    </section>}
     <div className="tp-record-status" role="status" aria-live="polite"><span className={`tp-record-state-dot ${isRecording ? 'is-recording' : ''} ${isSaving ? 'is-saving' : ''}`} aria-hidden="true"/><span className="mono">{isRecording ? 'REC' : isSaving ? 'SAVING…' : isFailure ? 'RECOVERY' : unavailable ? 'READY TO OPEN' : 'READY'}</span>{isRecording && <span className="mono">{elapsedLabel(elapsed)}</span>}</div>
     {snapshot.error && <div className="tp-record-alert"><Alert title="Recording needs attention" variant="destructive">{snapshot.error}</Alert></div>}
 
@@ -201,8 +215,8 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
         <span className="mono tp-record-timer">{isRecording ? elapsedLabel(elapsed) : '00:00'}</span>
         <div className="tp-record-utilities">
           {onPromptToggle && <IconButton className="tp-record-utility" label={promptPlaying ? 'Pause prompt' : 'Play prompt'} onClick={onPromptToggle} disabled={isSaving}>{promptPlaying ? <Pause size={18}/> : <Play size={18}/>}</IconButton>}
-          <IconButton className="tp-record-utility" label="Open prompt controls" onClick={() => setPromptSettingsOpen(true)}><Type size={18}/></IconButton>
-          <IconButton className="tp-record-utility" label="Open capture settings" onClick={() => setSettingsOpen(true)} disabled={cameraControlsDisabled}><Settings2 size={18}/></IconButton>
+          <IconButton className="tp-record-utility" label="Open prompt controls" onClick={() => { setPromptSettingsOpen(true); setLightControlsOpen(false) }}><Type size={18}/></IconButton>
+          <IconButton className="tp-record-utility" label="Open capture settings" onClick={() => { setSettingsOpen(true); setLightControlsOpen(false) }} disabled={cameraControlsDisabled}><Settings2 size={18}/></IconButton>
           <IconButton className="tp-record-utility" label="Switch camera" onClick={onSwitchCamera} disabled={cameraControlsDisabled || unavailable}><FlipHorizontal size={18}/></IconButton>
         </div>
       </div>

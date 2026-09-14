@@ -22,6 +22,13 @@ iPhone portrait recording and preview-axis failures in
 [bug 220326](https://bugs.webkit.org/show_bug.cgi?id=220326), and
 [bug 290223](https://bugs.webkit.org/show_bug.cgi?id=290223).
 
+The screen-powered front flash follows Snap's documented Ring Light behavior:
+a soft illuminated preview border with adjustable gradient intensity and color
+temperature. The visual reference and behavior are documented in Snap's
+[Inclusive Camera guide](https://developers.snap.com/camera-kit/integrate-sdk/ios/guides/inclusive-camera)
+and its official `cam-kit-ring-flash.jpg` example. No Camera Kit code or SDK is
+included; the web implementation is original CSS and existing UI primitives.
+
 No upstream code is copied into `src/features/recording` without adaptation.
 Recording chunks and scripts remain local in IndexedDB; no media is put in
 `localStorage` or sent to a remote service.
