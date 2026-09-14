@@ -46,6 +46,8 @@ test.describe('native recording engine', () => {
     await page.goto('tests/browser/recording-engine.html');
     await page.waitForFunction(() => !!window.recordingFixture);
 
+    expect(await page.evaluate(() => window.recordingFixture.probePortraitFrame())).toEqual({ width: 180, height: 320 });
+
     const landscape = await page.evaluate(async () => {
       const { defaultCaptureSettings } = await import('/creator-autoedit/src/features/recording/index.ts');
       return window.recordingFixture.capture({ ...defaultCaptureSettings, portrait: false, resolution: 720 });

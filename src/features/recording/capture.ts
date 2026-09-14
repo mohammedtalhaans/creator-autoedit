@@ -23,8 +23,11 @@ const AUDIO_METER_INTERVAL_MS = 50;
 
 /** Probe order is intentional: native H.264/AAC MP4 first, then WebM. */
 export const recordingMimeTypes = [
+  'video/mp4;codecs=avc1.640028,mp4a.40.2',
+  'video/mp4;codecs=avc1.64001F,mp4a.40.2',
+  'video/mp4;codecs=avc1.4D401F,mp4a.40.2',
   'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-  'video/mp4;codecs=avc1.4D0028,mp4a.40.2',
+  'video/mp4;codecs=avc1,mp4a.40.2',
   'video/mp4',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
@@ -52,16 +55,16 @@ function monotonicNow(): number {
 }
 
 /**
- * Treat the selected resolution as the short edge. Cameras are allowed to
- * negotiate a nearby mode, but the requested aspect and orientation remain
- * explicit. This is particularly important on phones whose sensor is
- * landscape even while the display is held vertically.
+ * Ask mobile cameras for their native wide preset even when the requested
+ * recording is portrait. Safari and Chrome rotate that full camera picture
+ * for display; asking for portrait dimensions can crop the sensor before the
+ * application receives it.
  */
 export function resolutionConstraints(settings: CaptureSettings): { width: MediaTrackConstraintSet['width']; height: MediaTrackConstraintSet['height'] } {
   const shortEdge = Math.max(1, Math.round(Number(settings.resolution) || 1080));
   const longEdge = Math.round(shortEdge * 16 / 9);
-  const width = settings.portrait ? shortEdge : longEdge;
-  const height = settings.portrait ? longEdge : shortEdge;
+  const width = longEdge;
+  const height = shortEdge;
   // Keep a permissive upper bound so a lower-end camera can negotiate down,
   // while avoiding an accidental unbounded request on mobile browsers.
   const maxDimension = (value: number) => Math.max(2_160, value);
@@ -73,16 +76,15 @@ export function resolutionConstraints(settings: CaptureSettings): { width: Media
 
 export function buildMediaConstraints(settings: CaptureSettings): MediaStreamConstraints {
   const size = resolutionConstraints(settings);
-  const aspectRatio = settings.portrait ? 9 / 16 : 16 / 9;
-  const video: MediaTrackConstraints = {
+  const video = {
     ...size,
-    ...(settings.framingMode === 'fill'
-      ? { aspectRatio: { ideal: aspectRatio }, resizeMode: { ideal: 'crop-and-scale' } }
-      : { resizeMode: { ideal: 'none' } }),
+    // Preserve the native field of view. The recording compositor handles the
+    // upright picture after observing what the browser actually draws.
+    resizeMode: { ideal: 'none' },
     frameRate: { ideal: settings.fps },
     facingMode: settings.cameraId ? undefined : { ideal: settings.facingMode },
     ...(settings.cameraId ? { deviceId: { exact: settings.cameraId } } : {}),
-  };
+  } as MediaTrackConstraints;
   const audio: MediaTrackConstraints = settings.microphoneId
     ? { deviceId: { exact: settings.microphoneId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -90,6 +92,43 @@ export function buildMediaConstraints(settings: CaptureSettings): MediaStreamCon
 }
 
 export type CaptureOrientation = 'portrait' | 'landscape' | 'unknown';
+
+export interface DrawnFrameDimensions { width: number; height: number }
+
+/**
+ * Detect the orientation of the picture the browser draws. On current mobile
+ * Safari, track settings can say 1920×1080 while drawImage paints an upright
+ * 1080×1920 picture. Alpha at opposite corners distinguishes those shapes
+ * without inspecting or uploading camera pixels.
+ *
+ * Adapted from Fuad Laguda's MIT-licensed web-teleprompter camera probe.
+ */
+export function measureDrawnFrame(video: HTMLVideoElement, reportedWidth: number, reportedHeight: number): DrawnFrameDimensions | null {
+  try {
+    const largeEdge = Math.max(reportedWidth, reportedHeight);
+    if (!Number.isFinite(largeEdge) || largeEdge <= 0) return null;
+    const sampleSize = 16;
+    const canvas = document.createElement('canvas');
+    canvas.width = sampleSize;
+    canvas.height = sampleSize;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+    context.clearRect(0, 0, sampleSize, sampleSize);
+    context.save();
+    context.scale(sampleSize / largeEdge, sampleSize / largeEdge);
+    context.drawImage(video, 0, 0);
+    context.restore();
+    const pixels = context.getImageData(0, 0, sampleSize, sampleSize).data;
+    const painted = (x: number, y: number) => pixels[(y * sampleSize + x) * 4 + 3] > 0;
+    const wide = painted(sampleSize - 1, 1) && !painted(1, sampleSize - 1);
+    const tall = painted(1, sampleSize - 1) && !painted(sampleSize - 1, 1);
+    if (wide) return { width: largeEdge, height: Math.min(reportedWidth, reportedHeight) };
+    if (tall) return { width: Math.min(reportedWidth, reportedHeight), height: largeEdge };
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export interface CaptureTransformInput {
   sourceWidth: number;
@@ -189,7 +228,17 @@ export function drawCaptureFrame(context: CanvasRenderingContext2D, source: Canv
   context.fillRect(0, 0, transform.targetWidth, transform.targetHeight);
   context.translate(transform.targetWidth / 2, transform.targetHeight / 2);
   if (transform.rotation) context.rotate(transform.rotation * Math.PI / 180);
-  context.drawImage(source, -(transform.sourceWidth * transform.scale) / 2, -(transform.sourceHeight * transform.scale) / 2, transform.sourceWidth * transform.scale, transform.sourceHeight * transform.scale);
+  context.drawImage(
+    source,
+    0,
+    0,
+    transform.sourceWidth,
+    transform.sourceHeight,
+    -(transform.sourceWidth * transform.scale) / 2,
+    -(transform.sourceHeight * transform.scale) / 2,
+    transform.sourceWidth * transform.scale,
+    transform.sourceHeight * transform.scale,
+  );
   context.restore();
 }
 
@@ -216,10 +265,12 @@ function numberSetting(settings: Record<string, unknown>, key: string): number |
 }
 
 /** Return the same transform used by the canvas compositor for a live preview. */
-export function previewTransform(settings: CaptureSettings, actualSettings: Record<string, unknown>, videoWidth: number, videoHeight: number): CaptureTransform {
+export function previewTransform(settings: CaptureSettings, actualSettings: Record<string, unknown>, videoWidth: number, videoHeight: number, drawnFrame?: DrawnFrameDimensions | null): CaptureTransform {
   const actualVideo = (actualSettings.video ?? {}) as Record<string, unknown>;
-  const sourceWidth = positiveDimension(videoWidth, numberSetting(actualVideo, 'sourceWidth') ?? numberSetting(actualVideo, 'width') ?? 1);
-  const sourceHeight = positiveDimension(videoHeight, numberSetting(actualVideo, 'sourceHeight') ?? numberSetting(actualVideo, 'height') ?? 1);
+  const reportedWidth = positiveDimension(videoWidth, numberSetting(actualVideo, 'sourceWidth') ?? numberSetting(actualVideo, 'width') ?? 1);
+  const reportedHeight = positiveDimension(videoHeight, numberSetting(actualVideo, 'sourceHeight') ?? numberSetting(actualVideo, 'height') ?? 1);
+  const sourceWidth = positiveDimension(drawnFrame?.width, reportedWidth);
+  const sourceHeight = positiveDimension(drawnFrame?.height, reportedHeight);
   const dimensions = requestedDimensions(settings);
   return resolveCaptureTransform({
     sourceWidth,
@@ -320,10 +371,10 @@ function needsCanvasComposition(settings: CaptureSettings, sourceWidth: number |
     rotation: settings.rotation ?? 'auto',
     framingMode: settings.framingMode ?? 'fit',
   });
-  // A native track is already the desired output only when Full view, no
-  // rotation, and exact target dimensions are all true. Otherwise compose so
-  // the preview and recording share a real, deterministic canvas.
-  return !(transform.framingMode === 'fit' && transform.rotation === 0 && sourceWidth === dimensions.width && sourceHeight === dimensions.height);
+  // A native track with the exact output axes needs no canvas, regardless of
+  // framing mode. This preserves native quality on browsers that report a true
+  // portrait track. A reported landscape track still goes through the probe.
+  return !(transform.rotation === 0 && sourceWidth === dimensions.width && sourceHeight === dimensions.height);
 }
 
 function transformedActualSettings(actualSettings: Record<string, unknown>, settings: CaptureSettings, transform: CaptureTransform, sourceWidth: number, sourceHeight: number, composed: boolean, unavailable = false): Record<string, unknown> {
@@ -416,9 +467,15 @@ async function createCaptureComposition(source: MediaStream, settings: CaptureSe
   try {
     await video.play();
     await waitForVideoMetadata(video);
-    const sourceWidth = video.videoWidth || initialWidth || 640;
-    const sourceHeight = video.videoHeight || initialHeight || 360;
-    if (!needsCanvasComposition(settings, sourceWidth, sourceHeight)) {
+    const reportedWidth = video.videoWidth || initialWidth || 640;
+    const reportedHeight = video.videoHeight || initialHeight || 360;
+    const drawnFrame = measureDrawnFrame(video, reportedWidth, reportedHeight);
+    // Use the whole upright picture Safari presents, even when the underlying
+    // track reports the sensor's landscape axes. This avoids a 9:16 centre crop.
+    const sourceWidth = drawnFrame?.width ?? reportedWidth;
+    const sourceHeight = drawnFrame?.height ?? reportedHeight;
+    const drawnAxesDiffer = Boolean(drawnFrame && (sourceWidth !== reportedWidth || sourceHeight !== reportedHeight));
+    if (!drawnAxesDiffer && !needsCanvasComposition(settings, sourceWidth, sourceHeight)) {
       cleanup();
       return null;
     }
@@ -474,9 +531,19 @@ async function createCaptureComposition(source: MediaStream, settings: CaptureSe
     // Do not clone or route the audio through Web Audio: the original track is
     // kept in the composed stream so microphone bytes stay native.
     const recordingStream = new MediaStream([composedVideo, ...sourceAudio]);
+    const composedSettings = transformedActualSettings(actualSettings, settings, transform, sourceWidth, sourceHeight, true);
     return {
       stream: recordingStream,
-      actualSettings: transformedActualSettings(actualSettings, settings, transform, sourceWidth, sourceHeight, true),
+      actualSettings: {
+        ...composedSettings,
+        video: {
+          ...((composedSettings.video ?? {}) as Record<string, unknown>),
+          reportedWidth,
+          reportedHeight,
+          drawnOrientationDetected: Boolean(drawnFrame),
+          composition: drawnFrame && reportedWidth > reportedHeight && sourceHeight > sourceWidth ? 'canvas-whole-upright' : 'canvas-transform',
+        },
+      },
       cleanup,
     };
   } catch {

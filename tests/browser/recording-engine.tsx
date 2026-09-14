@@ -3,6 +3,7 @@ import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import {
   defaultCaptureSettings,
   defaultPromptSettings,
+  measureDrawnFrame,
   recorder,
   recordingLibrary,
   stitchTakes,
@@ -102,6 +103,34 @@ async function stitch(ids: string[]) {
   }
 }
 
+async function probePortraitFrame() {
+  const source = document.createElement('canvas');
+  source.width = 180;
+  source.height = 320;
+  const context = source.getContext('2d');
+  if (!context) throw new Error('Canvas context unavailable.');
+  context.fillStyle = '#f43f5e';
+  context.fillRect(0, 0, source.width, source.height);
+  const stream = source.captureStream(30);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  document.body.append(video);
+  try {
+    await video.play();
+    if (video.readyState < 2) await new Promise<void>((resolve) => video.addEventListener('loadeddata', () => resolve(), { once: true }));
+    // Deliberately pass landscape track metadata for a portrait picture, which
+    // reproduces the WebKit disagreement the production probe must resolve.
+    return measureDrawnFrame(video, 320, 180);
+  } finally {
+    video.pause();
+    video.srcObject = null;
+    video.remove();
+    stream.getTracks().forEach((track) => track.stop());
+  }
+}
+
 declare global {
   interface Window {
     recordingFixture: {
@@ -109,6 +138,7 @@ declare global {
       inspect: typeof inspect;
       list: typeof list;
       stitch: typeof stitch;
+      probePortraitFrame: typeof probePortraitFrame;
       open: () => Promise<void>;
       close: () => Promise<void>;
     };
@@ -120,6 +150,7 @@ window.recordingFixture = {
   inspect,
   list,
   stitch,
+  probePortraitFrame,
   open: async () => { await recorder.open(defaultCaptureSettings); },
   close: () => recorder.close(),
 };

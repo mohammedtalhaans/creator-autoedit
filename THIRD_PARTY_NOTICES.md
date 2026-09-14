@@ -24,6 +24,7 @@ manifest is retained for release diagnostics only.
 | DM Sans, JetBrains Mono, Barlow Condensed | Upstream font projects / SIL Open Font License 1.1 | Verify installed OFL notices and reserved-font-name terms. |
 | Vitest | https://github.com/vitest-dev/vitest — MIT | Test tool. |
 | Playwright | https://github.com/microsoft/playwright — Apache-2.0 | Browser test tool; browser binaries have their own terms and are not bundled. |
+| web-teleprompter camera probe | https://github.com/lagudafuadtosin/web-teleprompter — MIT, Copyright (c) 2026 Fuad Laguda | Adapted 16-pixel drawn-frame orientation probe. Preserve the upstream MIT notice; exact provenance is recorded in `docs/SOURCES_CAPTURE.md`. |
 
 ## UI source provenance
 

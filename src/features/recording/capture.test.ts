@@ -10,11 +10,11 @@ function streamWithSettings(video: Record<string, unknown>, audio: Record<string
 }
 
 describe('capture orientation negotiation', () => {
-  it('requests portrait dimensions using resolution as the short edge in Full view', () => {
+  it('requests the full native wide preset for a portrait recording', () => {
     const settings = { ...defaultCaptureSettings, portrait: true, resolution: 1080 as const, facingMode: 'user' as const, framingMode: 'fit' as const };
     const size = resolutionConstraints(settings);
-    expect(size.width?.ideal).toBe(1080);
-    expect(size.height?.ideal).toBe(1920);
+    expect(size.width?.ideal).toBe(1920);
+    expect(size.height?.ideal).toBe(1080);
     const constraints = buildMediaConstraints(settings);
     const video = constraints.video as MediaTrackConstraints;
     expect(video.aspectRatio).toBeUndefined();
@@ -33,11 +33,11 @@ describe('capture orientation negotiation', () => {
     expect(video.deviceId).toEqual({ exact: 'camera-1' });
   });
 
-  it('asks the browser to crop and scale a native portrait stream in Fill mode', () => {
+  it('does not ask the browser to crop the sensor in portrait Fill mode', () => {
     const settings = { ...defaultCaptureSettings, portrait: true, framingMode: 'fill' as const };
     const video = buildMediaConstraints(settings).video as MediaTrackConstraints;
-    expect(video.aspectRatio).toEqual({ ideal: 9 / 16 });
-    expect(video.resizeMode).toEqual({ ideal: 'crop-and-scale' });
+    expect(video.aspectRatio).toBeUndefined();
+    expect(video.resizeMode).toEqual({ ideal: 'none' });
   });
 
   it('uses no-bars portrait fill by default and migrates versionless stored settings once', () => {
@@ -105,6 +105,20 @@ describe('capture orientation negotiation', () => {
     expect(fill.contentRect.width).toBeGreaterThan(1080);
     expect(fill.contentRect.height).toBeCloseTo(1920);
     expect(fill.contentRect.x).toBeLessThan(0);
+  });
+
+  it('preserves the whole upright frame when Safari draws portrait but reports landscape', () => {
+    const transform = previewTransform(
+      { ...defaultCaptureSettings, portrait: true, framingMode: 'fill' },
+      { video: { width: 1920, height: 1080 } },
+      1920,
+      1080,
+      { width: 1080, height: 1920 },
+    );
+    expect(transform.sourceWidth).toBe(1080);
+    expect(transform.sourceHeight).toBe(1920);
+    expect(transform.scale).toBe(1);
+    expect(transform.contentRect).toEqual({ x: 0, y: 0, width: 1080, height: 1920 });
   });
 
   it('does not infer rotation from landscape dimensions alone', () => {

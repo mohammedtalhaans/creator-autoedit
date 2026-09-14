@@ -55,6 +55,10 @@ test.describe('phone first Script to Record to Review flow', () => {
     expect((cameraFrame.content?.y ?? 0) + (cameraFrame.content?.height ?? 0)).toBeGreaterThanOrEqual(cameraFrame.targetHeight - 1);
     mediaCalls.push(...await page.evaluate(() => (window as typeof window & { __phoneFlowMediaCalls?: unknown[] }).__phoneFlowMediaCalls ?? []));
     expect(mediaCalls.length).toBeGreaterThan(0);
+    const requestedVideo = (mediaCalls[0] as { video?: { width?: { ideal?: number }; height?: { ideal?: number }; resizeMode?: { ideal?: string }; aspectRatio?: unknown } }).video;
+    expect(requestedVideo?.width?.ideal).toBeGreaterThan(requestedVideo?.height?.ideal ?? Number.POSITIVE_INFINITY);
+    expect(requestedVideo?.resizeMode?.ideal).toBe('none');
+    expect(requestedVideo?.aspectRatio).toBeUndefined();
     const promptScroll = page.locator('.tp-reader-compact .tp-script-scroll');
     const promptWords = page.locator('.tp-reader-compact button[data-spoken-index]');
     await expect(page.getByText('Scroll · tap a word', { exact: true })).toBeVisible();

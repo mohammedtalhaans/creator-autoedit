@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Type, Video, Volume2, Zap } from 'lucide-react'
 import type { CaptureSettings, PromptSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording'
-import { drawCaptureFrame, previewTransform } from '../../features/recording/capture'
+import { drawCaptureFrame, measureDrawnFrame, previewTransform, type DrawnFrameDimensions } from '../../features/recording/capture'
 import { Alert, Badge, BottomSheet, Button, IconButton, NativeSelect, Slider, Switch } from '../ui/primitives'
 import { PromptSettingsPanel } from './PromptSettingsPanel'
 
@@ -98,6 +98,8 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
     let cancelled = false
     let frameRequest: number | null = null
     let animationRequest: number | null = null
+    let measuredFrame: DrawnFrameDimensions | null | undefined
+    let measurementAttempts = 0
     const frameVideo = video as HTMLVideoElement & {
       requestVideoFrameCallback?: (callback: () => void) => number
       cancelVideoFrameCallback?: (handle: number) => void
@@ -107,7 +109,11 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
       const sourceWidth = video.videoWidth || videoSize.width
       const sourceHeight = video.videoHeight || videoSize.height
       if (sourceWidth > 0 && sourceHeight > 0) {
-        const resolved = previewTransform(settings, snapshot.actualSettings, sourceWidth, sourceHeight)
+        if (measuredFrame === undefined || (measuredFrame === null && measurementAttempts < 10)) {
+          measurementAttempts += 1
+          measuredFrame = measureDrawnFrame(video, sourceWidth, sourceHeight)
+        }
+        const resolved = previewTransform(settings, snapshot.actualSettings, sourceWidth, sourceHeight, measuredFrame)
         const maxPixels = 1280 * 720
         const pixelScale = Math.min(1, Math.sqrt(maxPixels / Math.max(1, resolved.targetWidth * resolved.targetHeight)))
         const targetWidth = Math.max(1, Math.round(resolved.targetWidth * pixelScale))
@@ -130,6 +136,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
         canvas.dataset.framingMode = preview.framingMode
         canvas.dataset.rotation = String(preview.rotation)
         canvas.dataset.contentRect = JSON.stringify(preview.contentRect)
+        canvas.dataset.drawnFrame = measuredFrame ? `${measuredFrame.width}x${measuredFrame.height}` : ''
       }
       if (cancelled) return
       if (typeof frameVideo.requestVideoFrameCallback === 'function') frameRequest = frameVideo.requestVideoFrameCallback(() => draw())
@@ -218,7 +225,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
           <NativeSelect label="Camera" value={settings.cameraId} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ cameraId: event.target.value })}><option value="">Default camera</option>{snapshot.devices.filter((device) => device.kind === 'videoinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Camera'}</option>)}</NativeSelect>
           <NativeSelect label="Microphone" value={settings.microphoneId} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ microphoneId: event.target.value })}><option value="">Default microphone</option>{snapshot.devices.filter((device) => device.kind === 'audioinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Microphone'}</option>)}</NativeSelect>
         </div>
-        <p className="origin-field-help">Portrait fill asks the phone for a native 9:16 selfie stream and fills the recording if the browser returns a wider camera frame.</p>
+        <p className="origin-field-help">Portrait fill preserves the phone camera’s full view, detects its displayed orientation, and writes an upright 9:16 recording without asking the browser to pre-crop it.</p>
         <Switch label="Monitor audio" description="Send a quiet feed to headphones." checked={settings.monitorAudio} disabled={cameraControlsDisabled} onChange={(monitorAudio) => onSettingsChange({ monitorAudio })}/>
         <div className="tp-preflight-mic"><Button variant="outline" size="small" onClick={testMic} disabled={unavailable || cameraControlsDisabled || actionBusy}>{micTesting ? 'Listening…' : 'Test microphone'}</Button><span aria-hidden="true"><i style={{ width: `${Math.round(snapshot.level * 100)}%` }}/></span><Volume2 size={15}/></div>
         <details className="tp-preflight-advanced"><summary><RefreshCw size={14}/> Supported camera controls</summary><HardwareControls capabilities={snapshot.capabilities} settings={settings} onSettingsChange={onSettingsChange} disabled={cameraControlsDisabled}/></details>
