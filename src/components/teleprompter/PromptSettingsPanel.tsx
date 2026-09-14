@@ -1,35 +1,49 @@
 import type { PromptSettings } from '../../types/recording'
 import { installLocalFont } from '../../features/teleprompter/fonts'
+import { NativeSelect, Segmented, Slider, Switch } from '../ui/primitives'
 import { PromptQuickControls } from './PromptReader'
 
-export function PromptSettingsPanel({ settings, onChange }: { settings: PromptSettings; onChange: (patch: Partial<PromptSettings>) => void }) {
+export interface PromptSettingsPanelProps {
+  settings: PromptSettings
+  onChange: (patch: Partial<PromptSettings>) => void
+}
+
+export function PromptSettingsPanel({ settings, onChange }: PromptSettingsPanelProps) {
+  const promptMode = settings.mode === 'timed' ? 'timed' : settings.mode === 'manual' ? 'manual' : 'fixed'
   return <div className="tp-settings-panel">
-    <div className="tp-panel-label"><span className="eyebrow-small">READING SETUP</span><span className="mono">{settings.mode === 'timed' ? `FINISH IN ${Math.round(settings.targetSeconds)}S` : `${settings.wpm} WPM`}</span></div>
-    <div className="tp-mode-picker" role="group" aria-label="Prompt mode">
-      {([['fixed', 'Fixed pace'], ['timed', 'Finish in'], ['manual', 'Manual'], ['voice', 'Voice-follow']] as const).map(([value, label]) => <button key={value} type="button" className={settings.mode === value ? 'selected' : ''} aria-pressed={settings.mode === value} onClick={() => onChange({ mode: value })}>{label}</button>)}
-    </div>
-    {settings.mode === 'timed' && <label className="tp-field"><span>Target duration <output>{Math.round(settings.targetSeconds)} sec</output></span><input type="range" min="15" max="600" step="5" value={settings.targetSeconds} onChange={(event) => onChange({ targetSeconds: Number(event.target.value) })}/></label>}
+    <div className="tp-panel-label"><span className="eyebrow-small">READING SETUP</span><span className="mono">{settings.mode === 'timed' ? `FINISH IN ${Math.round(settings.targetSeconds)}S` : settings.mode === 'manual' ? 'MANUAL' : `${settings.wpm} WPM`}</span></div>
+    <Segmented className="tp-mode-picker" label="Prompt mode" value={promptMode} items={[{ value: 'fixed', label: 'Fixed pace' }, { value: 'timed', label: 'Finish in' }, { value: 'manual', label: 'Manual' }]} onChange={(mode) => onChange({ mode })}/>
+    {settings.mode === 'timed' && <Slider label="Target duration" value={settings.targetSeconds} min={15} max={600} step={5} display={`${Math.round(settings.targetSeconds)} sec`} onChange={(targetSeconds) => onChange({ targetSeconds })}/>}
     <PromptQuickControls settings={settings} onChange={onChange}/>
     <details className="tp-advanced">
-      <summary>Type, colour and pace <span className="mono">CUSTOMIZE</span></summary>
+      <summary>Text and layout <span className="mono">CUSTOMIZE</span></summary>
       <div className="tp-setting-grid">
-        <label className="tp-field"><span>Font</span><select value={settings.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value })}><option>DM Sans Variable</option><option>Barlow Condensed</option><option>JetBrains Mono Variable</option><option>Arial</option><option>Georgia</option><option>system-ui</option>{settings.fontFamily.startsWith('Creator Local ·') && <option>{settings.fontFamily}</option>}</select><span className="tp-font-upload">Load a local font<input type="file" accept=".woff,.woff2,.ttf,.otf,font/woff,font/woff2,font/ttf,font/otf" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void installLocalFont(file).then((family) => onChange({ fontFamily: family })) }}/></span></label>
-        <label className="tp-field"><span>Column width <output>{settings.columnWidth}%</output></span><input type="range" min="48" max="94" step="1" value={settings.columnWidth} onChange={(event) => onChange({ columnWidth: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Side margins <output>{settings.margin}%</output></span><input type="range" min="0" max="24" step="1" value={settings.margin} onChange={(event) => onChange({ margin: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Left gutter <output>{settings.marginLeft ?? settings.margin}%</output></span><input type="range" min="0" max="24" step="1" value={settings.marginLeft ?? settings.margin} onChange={(event) => onChange({ marginLeft: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Right gutter <output>{settings.marginRight ?? settings.margin}%</output></span><input type="range" min="0" max="24" step="1" value={settings.marginRight ?? settings.margin} onChange={(event) => onChange({ marginRight: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Horizontal position <output>{Math.round((settings.horizontalPosition ?? .5) * 100)}%</output></span><input type="range" min="0" max="1" step=".05" value={settings.horizontalPosition ?? .5} onChange={(event) => onChange({ horizontalPosition: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Line height <output>{settings.lineHeight.toFixed(2)}</output></span><input type="range" min="1.1" max="2" step=".05" value={settings.lineHeight} onChange={(event) => onChange({ lineHeight: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Letter spacing <output>{settings.letterSpacing.toFixed(1)} px</output></span><input type="range" min="-1" max="6" step=".1" value={settings.letterSpacing} onChange={(event) => onChange({ letterSpacing: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Near-lens line <output>{settings.readingLine}%</output></span><input type="range" min="10" max="65" step="1" value={settings.readingLine} onChange={(event) => onChange({ readingLine: Number(event.target.value) })}/></label>
+        <div className="tp-field"><NativeSelect label="Font" value={settings.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value })}>
+          <option>DM Sans Variable</option><option>Barlow Condensed</option><option>JetBrains Mono Variable</option><option>Arial</option><option>Georgia</option><option>system-ui</option>{settings.fontFamily.startsWith('Creator Local ·') && <option>{settings.fontFamily}</option>}
+        </NativeSelect><label className="tp-font-upload">Load a font from this device<input type="file" accept=".woff,.woff2,.ttf,.otf,font/woff,font/woff2,font/ttf,font/otf" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void installLocalFont(file).then((family) => onChange({ fontFamily: family })) }}/></label></div>
+        <Slider label="Column width" value={settings.columnWidth} min={48} max={94} step={1} display={`${settings.columnWidth}%`} onChange={(columnWidth) => onChange({ columnWidth })}/>
+        <Slider label="Side margins" value={settings.margin} min={0} max={24} step={1} display={`${settings.margin}%`} onChange={(margin) => onChange({ margin })}/>
+        <Slider label="Left gutter" value={settings.marginLeft ?? settings.margin} min={0} max={24} step={1} display={`${settings.marginLeft ?? settings.margin}%`} onChange={(marginLeft) => onChange({ marginLeft })}/>
+        <Slider label="Right gutter" value={settings.marginRight ?? settings.margin} min={0} max={24} step={1} display={`${settings.marginRight ?? settings.margin}%`} onChange={(marginRight) => onChange({ marginRight })}/>
+        <Slider label="Horizontal position" value={settings.horizontalPosition ?? .5} min={0} max={1} step={.05} display={`${Math.round((settings.horizontalPosition ?? .5) * 100)}%`} onChange={(horizontalPosition) => onChange({ horizontalPosition })}/>
+        <Slider label="Line height" value={settings.lineHeight} min={1.1} max={2} step={.05} display={settings.lineHeight.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })}/>
+        <Slider label="Letter spacing" value={settings.letterSpacing} min={-1} max={6} step={.1} display={`${settings.letterSpacing.toFixed(1)} px`} onChange={(letterSpacing) => onChange({ letterSpacing })}/>
+        <Slider label="Lens line" value={settings.readingLine} min={10} max={65} step={1} display={`${settings.readingLine}%`} onChange={(readingLine) => onChange({ readingLine })}/>
         <label className="tp-color-field"><span>Text colour</span><input type="color" value={settings.textColor} onChange={(event) => onChange({ textColor: event.target.value })}/></label>
-        <label className="tp-color-field"><span>Background</span><input type="color" value={settings.backgroundColor} onChange={(event) => onChange({ backgroundColor: event.target.value })}/></label>
-        <label className="tp-field"><span>Background opacity <output>{Math.round(settings.backgroundOpacity * 100)}%</output></span><input type="range" min=".55" max="1" step=".01" value={settings.backgroundOpacity} onChange={(event) => onChange({ backgroundOpacity: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Comma pause <output>{settings.commaPause.toFixed(2)}s</output></span><input type="range" min="0" max=".8" step=".02" value={settings.commaPause} onChange={(event) => onChange({ commaPause: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Period pause <output>{settings.periodPause.toFixed(2)}s</output></span><input type="range" min="0" max="1.5" step=".05" value={settings.periodPause} onChange={(event) => onChange({ periodPause: Number(event.target.value) })}/></label>
-        <label className="tp-field"><span>Paragraph pause <output>{settings.paragraphPause.toFixed(2)}s</output></span><input type="range" min="0" max="2.5" step=".05" value={settings.paragraphPause} onChange={(event) => onChange({ paragraphPause: Number(event.target.value) })}/></label>
+        <label className="tp-color-field"><span>Prompt background</span><input type="color" value={settings.backgroundColor} onChange={(event) => onChange({ backgroundColor: event.target.value })}/></label>
+        <Slider label="Background opacity" value={settings.backgroundOpacity} min={.55} max={1} step={.01} display={`${Math.round(settings.backgroundOpacity * 100)}%`} onChange={(backgroundOpacity) => onChange({ backgroundOpacity })}/>
+        <Slider label="Comma pause" value={settings.commaPause} min={0} max={.8} step={.02} display={`${settings.commaPause.toFixed(2)}s`} onChange={(commaPause) => onChange({ commaPause })}/>
+        <Slider label="Period pause" value={settings.periodPause} min={0} max={1.5} step={.05} display={`${settings.periodPause.toFixed(2)}s`} onChange={(periodPause) => onChange({ periodPause })}/>
+        <Slider label="Paragraph pause" value={settings.paragraphPause} min={0} max={2.5} step={.05} display={`${settings.paragraphPause.toFixed(2)}s`} onChange={(paragraphPause) => onChange({ paragraphPause })}/>
       </div>
-      <div className="tp-toggle-row"><label><input type="checkbox" checked={settings.lineTiming} onChange={(event) => onChange({ lineTiming: event.target.checked })}/> Density-based line timing</label><label><input type="checkbox" checked={settings.punctuation} onChange={(event) => onChange({ punctuation: event.target.checked })}/> Honour punctuation pauses</label><label><input type="checkbox" checked={settings.autoPause} onChange={(event) => onChange({ autoPause: event.target.checked })}/> Include cue pauses</label><label><input type="checkbox" checked={settings.mirror} onChange={(event) => onChange({ mirror: event.target.checked })}/> Mirror for beam-splitter</label><label><input type="checkbox" checked={settings.highContrast} onChange={(event) => onChange({ highContrast: event.target.checked })}/> High contrast</label><label><input type="checkbox" checked={settings.dimSurrounding} onChange={(event) => onChange({ dimSurrounding: event.target.checked })}/> Dim surrounding text</label></div>
+      <div className="tp-toggle-row">
+        <Switch label="Density-based line timing" checked={settings.lineTiming} onChange={(lineTiming) => onChange({ lineTiming })}/>
+        <Switch label="Honour punctuation pauses" checked={settings.punctuation} onChange={(punctuation) => onChange({ punctuation })}/>
+        <Switch label="Include cue pauses" checked={settings.autoPause} onChange={(autoPause) => onChange({ autoPause })}/>
+        <Switch label="Mirror prompt" checked={settings.mirror} onChange={(mirror) => onChange({ mirror })}/>
+        <Switch label="High contrast" checked={settings.highContrast} onChange={(highContrast) => onChange({ highContrast })}/>
+        <Switch label="Dim surrounding text" checked={settings.dimSurrounding} onChange={(dimSurrounding) => onChange({ dimSurrounding })}/>
+      </div>
     </details>
   </div>
 }

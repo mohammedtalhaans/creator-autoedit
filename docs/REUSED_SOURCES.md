@@ -1,27 +1,23 @@
-# Reused sources and pinned models
+# Reused sources
 
-The adapted source files and license boundaries are recorded in the existing
-focused notices:
+Current source reuse is documented in:
 
-- [SOURCES_PROMPTER.md](SOURCES_PROMPTER.md) — `larsbaunwall/promptme-ai`
-  `fe1de139b4266f5aac8edb9406c61a4ecf006d33` for matching/worker ideas and
-  `kevinkissi/teleprompter`
-  `ec0fc7bfdf713efd9ad497761a892002230f0dab` for reading-line/timing ideas.
+- [SOURCES_ORIGIN_UI.md](SOURCES_ORIGIN_UI.md) — Origin UI NG anatomy and
+  tokens at commit `d785a610f510f5197a145f8c1a24249309bacd2d`, adapted from
+  Angular components to React with the installed Radix primitives.
 - [SOURCES_CAPTURE.md](SOURCES_CAPTURE.md) — native MediaRecorder and the
-  adapted local Dexie recording repository pattern.
-- [SOURCES_CAPTIONS.md](SOURCES_CAPTIONS.md) — Silero VAD and MediaPipe source
-  patterns, package versions, model checksums, and runtime constraints.
+  local Dexie recording repository pattern.
+- [SOURCES_CAPTIONS.md](SOURCES_CAPTIONS.md) — current deterministic caption,
+  audio, and cut implementation boundaries.
 
-Pinned local model revisions used by the completed probes are:
+Runtime dependencies used by the current non-model build are React/React DOM,
+Radix React primitives, Mediabunny, the official Mediabunny AAC encoder,
+Mammoth for DOCX text import, Motion, Lucide, and the bundled Fontsource fonts.
+Exact versions and notices are in `package-lock.json`,
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md), and generated
+`public/notices/`.
 
-- `onnx-community/moonshine-tiny-ONNX`
-  `a6da1241cd305dcd64eab1edbd615f2bb9aabb95`
-- `onnx-community/silero-vad`
-  `e71cae966052b992a7eca6b17738916ce0eca4ec`
-- `onnx-community/SmolLM2-135M-Instruct-ONNX`
-  `b8a5c0f183b78c55955a5364f610c36668b5e681`
-
-The installed runtime versions are `@huggingface/transformers` 3.7.2,
-`@mediapipe/tasks-vision` 1.0.1, and `mammoth` 1.12.3. The exact package
-notices and model caveats remain in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
-and [PROMPT_MODEL_EVIDENCE.md](PROMPT_MODEL_EVIDENCE.md).
+Earlier research notes about local speech or writing models are historical
+context only. Those code paths, packages, workers, runtime assets, and model
+domains were removed from this build and are not part of the current feature
+claim.

@@ -1,14 +1,19 @@
 export type AppStage = 'home' | 'ingest' | 'analyzing' | 'editor' | 'exporting' | 'complete';
-export type Module = 'cut' | 'captions' | 'audio' | 'frame';
+export type Module = 'cut' | 'captions' | 'frame';
 export type CutPreset = 'natural' | 'tight' | 'jump' | 'off';
-export type CutDetector = 'energy' | 'speech';
+/** Deterministic local audio activity gate. `energy` is retained for old projects. */
+export type CutDetector = 'audio' | 'energy';
 export type CutConfig = {
-    /** The detector used to propose pauses. Energy remains the instant offline fallback. */
+    /** The deterministic detector used to propose pauses. */
     detector: CutDetector;
     /** Minimum source silence that can become a cut, in seconds. */
     minPause: number;
-    /** Speech edge padding retained on both sides of a cut, in seconds. */
-    padding: number;
+    /** Legacy symmetric edge padding, migrated to the asymmetric handles. */
+    padding?: number;
+    /** Audio retained after the previous active region, in seconds. */
+    afterSpeechPadding?: number;
+    /** Audio retained before the next active onset, in seconds. */
+    beforeSpeechPadding?: number;
 };
 export type SpeechAnalysisStatus = {
     status: 'idle' | 'preparing' | 'ready' | 'fallback' | 'error' | 'cancelled';
@@ -19,7 +24,7 @@ export type PortraitStatus = {
     status: 'idle' | 'preparing' | 'ready' | 'error';
     detail: string;
 };
-export type TaskName = 'read' | 'audio' | 'pauses' | 'captions' | 'face' | 'voice' | 'export';
+export type TaskName = 'read' | 'audio' | 'pauses' | 'captions' | 'export';
 export type TaskState = {
     status: 'idle' | 'running' | 'done' | 'error' | 'cancelled';
     detail: string;
@@ -76,7 +81,10 @@ export type WaveformData = {
     duration: number;
     windowMs: number;
     noiseFloorDb: number;
-    speechDb: number;
+    /** Upper activity quantile from the deterministic gate. */
+    activityDb: number;
+    /** Legacy saved field; never interpreted as speech. */
+    speechDb?: number;
 };
 export type TranscriptWord = {
     id: string;
@@ -178,7 +186,9 @@ export type Project = {
     overrides: Record<string, boolean>;
     cutPreset: CutPreset;
     cutConfig?: CutConfig;
-    /** Raw model spans retained separately from their pause complement. */
+    /** Per-cut manual boundary changes in seconds. */
+    cutAdjustments: Record<string, { startDelta: number; endDelta: number }>;
+    /** Legacy model fields are ignored when opening older projects. */
     speechSegments?: SpeechSegment[];
     speechPauses?: Pause[];
     speechStatus?: SpeechAnalysisStatus;

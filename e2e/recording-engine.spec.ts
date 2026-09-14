@@ -22,6 +22,8 @@ test.describe('native recording engine', () => {
     expect(firstDecoded.canDecodeVideo).toBe(true);
     expect(firstDecoded.canDecodeAudio).toBe(true);
     expect(firstDecoded.duration).toBeGreaterThan(0);
+    expect(firstDecoded.videoHeight).toBeGreaterThan(firstDecoded.videoWidth);
+    expect(first.actualSettings.video).toMatchObject({ displayWidth: expect.any(Number), displayHeight: expect.any(Number), orientation: 'portrait' });
 
     await page.reload();
     await page.waitForFunction(() => !!window.recordingFixture);
@@ -36,6 +38,29 @@ test.describe('native recording engine', () => {
     expect(stitched.canDecodeVideo).toBe(true);
     expect(stitched.canDecodeAudio).toBe(true);
     expect(stitched.duration).toBeGreaterThan(firstDecoded.duration + 1.5);
+
+    await page.evaluate(() => window.recordingFixture.close());
+  });
+
+  test('keeps a landscape request landscape and composes a mismatched portrait source', async ({ page }) => {
+    await page.goto('tests/browser/recording-engine.html');
+    await page.waitForFunction(() => !!window.recordingFixture);
+
+    const landscape = await page.evaluate(async () => {
+      const { defaultCaptureSettings } = await import('/creator-autoedit/src/features/recording/index.ts');
+      return window.recordingFixture.capture({ ...defaultCaptureSettings, portrait: false, resolution: 720 });
+    });
+    const landscapeDecoded = await page.evaluate((id) => window.recordingFixture.inspect(id), landscape.id);
+    expect(landscapeDecoded.canDecodeVideo).toBe(true);
+    expect(landscapeDecoded.canDecodeAudio).toBe(true);
+    expect(landscapeDecoded.videoWidth).toBeGreaterThan(landscapeDecoded.videoHeight);
+
+    const composed = await page.evaluate(() => window.recordingFixture.capture({ portrait: true, resolution: 1080, cameraId: '', microphoneId: '', facingMode: 'user', fps: 30, monitorAudio: false, controls: {} }, { forceLandscapeSource: true }));
+    const composedDecoded = await page.evaluate((id) => window.recordingFixture.inspect(id), composed.id);
+    expect(composedDecoded.canDecodeVideo).toBe(true);
+    expect(composedDecoded.canDecodeAudio).toBe(true);
+    expect(composedDecoded.videoHeight).toBeGreaterThan(composedDecoded.videoWidth);
+    expect(composed.actualSettings.video).toMatchObject({ composed: true, sourceWidth: expect.any(Number), sourceHeight: expect.any(Number), orientation: 'portrait' });
 
     await page.evaluate(() => window.recordingFixture.close());
   });

@@ -1,150 +1,228 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import { Camera, Circle, Headphones, LockKeyhole, Mic, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Square, Video, Volume2 } from 'lucide-react'
-import type { CaptureSettings, RecorderSnapshot, ScriptDocument } from '../../types/recording'
-import { createPortraitProcessor, type PortraitProcessor } from '../../features/portrait-effects'
-import { Button, IconButton, Slider, Switch } from '../ui/primitives'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  ArrowLeft,
+  Camera,
+  FlipHorizontal,
+  LockKeyhole,
+  Mic,
+  Pause,
+  Play,
+  RefreshCw,
+  Settings2,
+  ShieldCheck,
+  Square,
+  Video,
+  Volume2,
+  Zap,
+} from 'lucide-react';
+import type { CaptureSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording';
+import { Alert, Badge, BottomSheet, Button, IconButton, NativeSelect, Slider, Switch } from '../ui/primitives';
 
-interface RecordPanelProps {
-  snapshot: RecorderSnapshot
-  settings: CaptureSettings
-  script: ScriptDocument
-  onSettingsChange: (patch: Partial<CaptureSettings>) => void
-  onOpen: () => void
-  onStart: () => void
-  onStop: () => void
-  onTestMic: () => void
-  onRequestStorage: () => void
-  onSwitchCamera: () => void
-  onRecoveryDownload: () => void
-  recoveryAvailable: boolean
-  reader?: ReactNode
+export interface RecordPanelProps {
+  snapshot: RecorderSnapshot;
+  settings: CaptureSettings;
+  script: ScriptDocument;
+  reader?: ReactNode;
+  onBack?: () => void;
+  onSettingsChange: (patch: Partial<CaptureSettings>) => void;
+  onOpen: () => void;
+  onStart: () => Promise<void> | void;
+  /** Resolves to the durable take so the parent can open TakeReview immediately. */
+  onStop: () => Promise<TakeRecord> | void;
+  onTestMic: () => void;
+  onRequestStorage: () => void;
+  onSwitchCamera: () => void;
+  onRecoveryDownload: () => void;
+  recoveryAvailable: boolean;
+  onPromptToggle?: () => void;
+  promptPlaying?: boolean;
 }
 
-function titleCase(value: string): string { return value === 'original' ? 'Original' : value.slice(0, 1).toUpperCase() + value.slice(1) }
-
-function HardwareControls({ capabilities, actualSettings, settings, onSettingsChange }: { capabilities: Record<string, unknown>; actualSettings: Record<string, unknown>; settings: CaptureSettings; onSettingsChange: (patch: Partial<CaptureSettings>) => void }) {
-  const controls = settings.controls ?? {}
-  const videoCapabilities = capabilities.video as Record<string, unknown> | undefined
-  const actualVideo = actualSettings.video as Record<string, unknown> | undefined
-  if (!videoCapabilities) return <p>Camera hardware controls are not exposed by this browser.</p>
-  const setControl = (key: string, value: string | number | boolean) => onSettingsChange({ controls: { ...controls, [key]: value } })
-  const numeric = (key: string, label: string) => {
-    const range = videoCapabilities[key] as { min?: number; max?: number; step?: number } | undefined
-    if (!range || typeof range !== 'object' || typeof range.min !== 'number' || typeof range.max !== 'number') return null
-    const actual = actualVideo?.[key]
-    const selected = controls[key]
-    const value = typeof selected === 'number' ? selected : typeof actual === 'number' ? actual : range.min
-    const step = typeof range.step === 'number' && range.step > 0 ? range.step : Math.max(.01, (range.max - range.min) / 100)
-    return <Slider key={key} label={label} value={Math.max(range.min, Math.min(range.max, value))} min={range.min} max={range.max} step={step} display={`${Math.round(value * 100) / 100}`} onChange={(next) => setControl(key, next)}/>
-  }
-  const enumControl = (key: string, label: string) => {
-    const values = Array.isArray(videoCapabilities[key]) ? videoCapabilities[key].map(String) : []
-    if (!values.length) return null
-    const actual = actualVideo?.[key]
-    return <label key={key}><span>{label}</span><select value={String(controls[key] ?? actual ?? values[0])} onChange={(event) => setControl(key, event.target.value)}>{values.map((mode) => <option key={mode}>{mode}</option>)}</select></label>
-  }
-  const boolControl = (key: string, label: string) => videoCapabilities[key] === true ? <label key={key} className="tp-hardware-check"><input type="checkbox" checked={Boolean(controls[key] ?? actualVideo?.[key])} onChange={(event) => setControl(key, event.target.checked)}/><span>{label}</span></label> : null
-  const supportedNumeric = [['zoom', 'Camera zoom'], ['exposureCompensation', 'Exposure compensation'], ['exposureTime', 'Exposure time'], ['iso', 'ISO'], ['colorTemperature', 'Colour temperature'], ['focusDistance', 'Focus distance']].map(([key, label]) => numeric(key, label)).filter((control): control is ReactElement => Boolean(control))
-  const supportedEnums = [['focusMode', 'Focus mode'], ['exposureMode', 'Exposure mode'], ['whiteBalanceMode', 'White balance'], ['stabilization', 'Stabilization'], ['imageStabilization', 'Image stabilization']].map(([key, label]) => enumControl(key, label)).filter((control): control is ReactElement => Boolean(control))
-  const supportedBooleans = [boolControl('torch', 'Torch'), boolControl('stabilization', 'Stabilization')].filter((control): control is ReactElement => Boolean(control))
-  const hasControl = supportedNumeric.length > 0 || supportedEnums.length > 0 || supportedBooleans.length > 0
-  if (!hasControl) return <p>Camera hardware controls are not exposed by this browser.</p>
-  return <div className="tp-hardware-controls">{supportedNumeric}{supportedEnums}{supportedBooleans}</div>
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
-export function RecordPanel({ snapshot, settings, script, onSettingsChange, onOpen, onStart, onStop, onTestMic, onRequestStorage, onSwitchCamera, onRecoveryDownload, recoveryAvailable, reader }: RecordPanelProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const portraitRef = useRef<PortraitProcessor | null>(null)
-  const frameBusyRef = useRef(false)
-  const [portraitPreparing, setPortraitPreparing] = useState(false)
-  const [portraitPrepared, setPortraitPrepared] = useState(false)
-  const [portraitError, setPortraitError] = useState('')
+function numeric(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function formatResolution(actualSettings: Record<string, unknown>, requested: CaptureSettings): string {
+  const video = asRecord(actualSettings.video);
+  const width = numeric(video.displayWidth) ?? numeric(video.width);
+  const height = numeric(video.displayHeight) ?? numeric(video.height);
+  if (width && height) return `${Math.round(width)}×${Math.round(height)}`;
+  const short = requested.resolution;
+  const long = Math.round(short * 16 / 9);
+  return requested.portrait ? `${short}×${long}` : `${long}×${short}`;
+}
+
+function actualOrientation(actualSettings: Record<string, unknown>, requested: CaptureSettings): 'portrait' | 'landscape' {
+  const video = asRecord(actualSettings.video);
+  if (video.displayOrientation === 'portrait' || video.orientation === 'portrait') return 'portrait';
+  if (video.displayOrientation === 'landscape' || video.orientation === 'landscape') return 'landscape';
+  const width = numeric(video.displayWidth) ?? numeric(video.width);
+  const height = numeric(video.displayHeight) ?? numeric(video.height);
+  if (width && height && width !== height) return width > height ? 'landscape' : 'portrait';
+  return requested.portrait ? 'portrait' : 'landscape';
+}
+
+function elapsedLabel(seconds: number): string {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+function HardwareControls({ capabilities, settings, onSettingsChange, disabled }: {
+  capabilities: Record<string, unknown>;
+  settings: CaptureSettings;
+  onSettingsChange: (patch: Partial<CaptureSettings>) => void;
+  disabled: boolean;
+}) {
+  const videoCapabilities = asRecord(capabilities.video);
+  const controls = settings.controls ?? {};
+  const exposed = ['zoom', 'exposureCompensation', 'focusDistance', 'torch'].filter((key) => key in videoCapabilities);
+  if (exposed.length === 0) return <p className="origin-field-help">This camera exposes no extra controls.</p>;
+  return <div className="tp-hardware-controls" aria-label="Supported camera controls">
+    {exposed.map((key) => {
+      const value = videoCapabilities[key];
+      if (key === 'torch') return <Switch key={key} label="Flash / torch" checked={Boolean(controls[key])} disabled={disabled} onChange={(enabled) => onSettingsChange({ controls: { ...controls, torch: enabled } })}/>;
+      if (!value || typeof value !== 'object') return null;
+      const range = value as { min?: number; max?: number; step?: number };
+      if (typeof range.min !== 'number' || typeof range.max !== 'number') return null;
+      const selected = numeric(controls[key]) ?? range.min;
+      const step = typeof range.step === 'number' && range.step > 0 ? range.step : Math.max(0.01, (range.max - range.min) / 100);
+      const label = key === 'exposureCompensation' ? 'Exposure' : key[0].toUpperCase() + key.slice(1);
+      return <Slider key={key} label={label} value={Math.max(range.min, Math.min(range.max, selected))} min={range.min} max={range.max} step={step} display={`${Math.round(selected * 100) / 100}`} disabled={disabled} onChange={(next) => onSettingsChange({ controls: { ...controls, [key]: next } })}/>;
+    })}
+  </div>;
+}
+
+/** Full-viewport camera surface. PromptReader is deliberately an overlay slot. */
+export function RecordPanel({
+  snapshot,
+  settings,
+  script,
+  reader,
+  onBack,
+  onSettingsChange,
+  onOpen,
+  onStart,
+  onStop,
+  onTestMic,
+  onRequestStorage,
+  onSwitchCamera,
+  onRecoveryDownload,
+  recoveryAvailable,
+  onPromptToggle,
+  promptPlaying = false,
+}: RecordPanelProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const actionBusyRef = useRef(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [micTesting, setMicTesting] = useState(false);
 
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    video.srcObject = snapshot.stream
-    if (snapshot.stream) void video.play().catch(() => {})
-    return () => { video.srcObject = null }
-  }, [snapshot.stream])
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = snapshot.stream;
+    if (snapshot.stream) void video.play().catch(() => undefined);
+    return () => { video.pause(); video.srcObject = null; };
+  }, [snapshot.stream]);
 
-  useEffect(() => () => { portraitRef.current?.dispose(); portraitRef.current = null }, [])
+  const isRecording = snapshot.status === 'recording';
+  const isSaving = snapshot.status === 'saving';
+  const isOpening = snapshot.status === 'opening';
+  const isFailure = snapshot.status === 'error';
+  const unavailable = !snapshot.stream;
+  const controlsDisabled = isSaving || isRecording || isOpening;
+  const videoCapabilities = asRecord(snapshot.capabilities.video);
+  const hasTorch = videoCapabilities.torch === true;
+  const torchOn = Boolean(settings.controls?.torch);
+  const resolution = useMemo(() => formatResolution(snapshot.actualSettings, settings), [snapshot.actualSettings, settings]);
+  const orientation = actualOrientation(snapshot.actualSettings, settings);
 
-  const isRecording = snapshot.status === 'recording' || snapshot.status === 'saving'
-  const opening = snapshot.status === 'opening'
-  const effects = useMemo(() => settings.portraitEffects ?? { backgroundBlur: 0, skinSmoothing: 0 }, [settings.portraitEffects])
-  const activeEffects = Boolean(effects.backgroundBlur || effects.skinSmoothing)
-  const looks = ['original', 'natural', 'soft', 'vivid', 'warm', 'mono', 'cool']
-  const intensity = Math.max(0, Math.min(1, settings.lookIntensity))
-  const previewFilter = settings.look === 'mono'
-    ? `grayscale(${intensity})`
-    : settings.look === 'warm'
-      ? `sepia(${0.22 * intensity}) saturate(${1 + 0.08 * intensity})`
-      : settings.look === 'cool'
-        ? `saturate(${1 - 0.12 * intensity}) hue-rotate(${8 * intensity}deg) brightness(${1 + 0.03 * intensity})`
-        : settings.look === 'vivid'
-          ? `saturate(${1 + 0.28 * intensity}) contrast(${1 + 0.04 * intensity})`
-          : settings.look === 'soft'
-            ? `saturate(${1 - 0.14 * intensity}) contrast(${1 - 0.06 * intensity}) brightness(${1 + 0.04 * intensity})`
-            : settings.look === 'natural'
-              ? `saturate(${1 + 0.04 * intensity}) contrast(${1 + 0.01 * intensity})`
-              : undefined
-
-  useEffect(() => {
-    if (!portraitPrepared || !snapshot.stream || !activeEffects) return
-    let cancelled = false
-    const tick = async () => {
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      const processor = portraitRef.current
-      if (!video || !canvas || !processor || cancelled || video.readyState < 2 || frameBusyRef.current) return
-      const width = video.videoWidth || 640
-      const height = video.videoHeight || 360
-      canvas.width = width
-      canvas.height = height
-      frameBusyRef.current = true
-      try {
-        const bitmap = await processor.process(video, width, height, effects, performance.now())
-        if (!cancelled) canvas.getContext('2d')?.drawImage(bitmap, 0, 0, width, height)
-        bitmap.close()
-      } catch (error) {
-        if (!cancelled && (error instanceof DOMException ? error.name !== 'AbortError' : true)) setPortraitError(error instanceof Error ? error.message : String(error))
-      } finally { frameBusyRef.current = false }
+  const runAction = async (action: () => Promise<unknown> | unknown) => {
+    if (actionBusyRef.current) return;
+    actionBusyRef.current = true;
+    setActionBusy(true);
+    try { await action(); } finally {
+      actionBusyRef.current = false;
+      setActionBusy(false);
     }
-    const timer = window.setInterval(() => void tick(), 120)
-    void tick()
-    return () => { cancelled = true; window.clearInterval(timer) }
-  }, [activeEffects, effects, portraitPrepared, snapshot.stream])
+  };
 
-  const preparePortrait = async () => {
-    if (portraitPrepared || portraitPreparing) return
-    setPortraitError('')
-    setPortraitPreparing(true)
-    try {
-      portraitRef.current ??= createPortraitProcessor()
-      await portraitRef.current.prepare()
-      setPortraitPrepared(true)
-    } catch (error) { setPortraitError(error instanceof Error ? error.message : String(error)) }
-    finally { setPortraitPreparing(false) }
-  }
+  const start = () => void runAction(onStart);
+  const stop = () => void runAction(onStop);
+  const testMic = () => void runAction(async () => {
+    setMicTesting(true);
+    try { await onTestMic(); } finally { setMicTesting(false); }
+  });
 
-  const videoSettings = snapshot.actualSettings.video as Record<string, unknown> | undefined
-
-  return <div className="tp-record-side">
-    <div className="tp-record-viewfinder">
-      {snapshot.stream ? <><video ref={videoRef} muted playsInline className={`tp-camera-video ${script.settings.mirror ? 'is-mirrored' : ''} ${portraitPrepared && activeEffects ? 'tp-video-under-portrait' : ''}`} style={{ filter: previewFilter }} aria-label="Camera preview"/><canvas ref={canvasRef} className={`tp-portrait-canvas ${portraitPrepared && activeEffects ? 'is-visible' : ''}`} aria-hidden="true"/></> : <div className="tp-no-camera"><Camera size={25}/><strong>Camera preview stays private.</strong><span>Open it when you are ready to record. Read-only prompting never asks for permission.</span><Button variant="secondary" onClick={onOpen} disabled={opening}>{opening ? 'Opening inputs…' : 'Open camera & mic'}</Button></div>}
-      {snapshot.stream && <div className="tp-viewfinder-readout"><span className="mono"><i/> LIVE PREVIEW</span><span className="mono">{videoSettings?.width && videoSettings?.height ? `${videoSettings.width}×${videoSettings.height}` : 'Negotiating'}</span></div>}
-      {isRecording && <div className="tp-record-pill"><Circle size={10} fill="currentColor"/> REC <span className="mono">{Math.floor(snapshot.elapsed / 60)}:{String(Math.floor(snapshot.elapsed % 60)).padStart(2, '0')}</span></div>}
-      {reader && <div className="tp-record-reader-overlay">{reader}</div>}
+  return <section className="tp-record-fullscreen" aria-label="Camera recording" style={{ position: 'fixed', inset: 0, zIndex: 40, minHeight: '100dvh', overflow: 'hidden', background: '#000' }}>
+    <div className="tp-record-camera-layer" style={{ position: 'absolute', inset: 0, background: '#000' }}>
+      {snapshot.stream ? <video ref={videoRef} muted playsInline autoPlay className={`tp-camera-video ${script.settings.mirror ? 'is-mirrored' : ''}`} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover', objectPosition: 'center', transform: script.settings.mirror ? 'scaleX(-1)' : undefined }} aria-label="Camera preview"/> : <div className="tp-no-camera" style={{ position: 'absolute', inset: 0, display: 'grid', placeContent: 'center', justifyItems: 'center', gap: 14, padding: 24, color: '#fff', textAlign: 'center' }}><Camera size={34}/><strong>{isOpening ? 'Opening camera…' : 'Camera preview unavailable'}</strong><span>Allow camera and microphone access to record a take.</span><Button variant="outline" onClick={onOpen} disabled={isOpening}>{isOpening ? 'Opening inputs…' : 'Open camera & mic'}</Button></div>}
     </div>
-    <div className="tp-record-header"><div><span className="eyebrow-small">RECORDING DESK</span><h2>Keep the script near the lens.</h2></div><span className="tp-record-title mono">{script.title}</span></div>
-    <div className="tp-record-actions"><Button variant="primary" className="tp-record-button" onClick={isRecording ? onStop : onStart} disabled={!snapshot.stream || snapshot.status === 'opening' || snapshot.status === 'saving' || !script.text.trim()}>{isRecording ? <><Square size={17} fill="currentColor"/> Stop & save take</> : <><Circle size={17} fill="currentColor"/> {snapshot.activeTake?.status === 'complete' ? 'Record another take' : 'Start recording'}</>}</Button><IconButton label="Reopen camera with current settings" onClick={onSwitchCamera} disabled={!snapshot.stream}><RefreshCw size={17}/></IconButton></div>
-    <p className="tp-record-note"><ShieldCheck size={14}/> The script is a separate reading layer. It is never burned into the recorded video.</p>
-    {snapshot.error && <div className="tp-record-error" role="status"><strong>Recording needs attention</strong><span>{snapshot.error}</span><Button size="small" variant="secondary" onClick={onStop}>Stop and finish the manifest</Button>{recoveryAvailable && <Button size="small" variant="ghost" onClick={onRecoveryDownload}>Download recovered take</Button>}</div>}
-    {snapshot.notice && <p className="tp-record-notice" role="status">{snapshot.notice}</p>}
-    <section className="tp-capture-settings"><div className="tp-section-heading"><span className="eyebrow-small">CAPTURE SETTINGS</span><span className="mono">ACTUAL VALUES AFTER OPEN</span></div><div className="tp-control-grid"><label><span><Video size={14}/> Orientation</span><select value={settings.portrait ? 'portrait' : 'landscape'} disabled={isRecording} onChange={(event) => onSettingsChange({ portrait: event.target.value === 'portrait' })}><option value="portrait">Portrait 9:16</option><option value="landscape">Landscape 16:9</option></select></label><label><span><Camera size={14}/> Resolution</span><select value={settings.resolution} disabled={isRecording} onChange={(event) => onSettingsChange({ resolution: Number(event.target.value) as CaptureSettings['resolution'] })}><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p · source only</option></select></label><label><span><RefreshCw size={14}/> Frame rate</span><select value={settings.fps} disabled={isRecording} onChange={(event) => onSettingsChange({ fps: Number(event.target.value) as CaptureSettings['fps'] })}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></label><label><span><Mic size={14}/> Microphone</span><select value={settings.microphoneId} disabled={isRecording} onChange={(event) => onSettingsChange({ microphoneId: event.target.value })}><option value="">Default microphone</option>{snapshot.devices.filter((device) => device.kind === 'audioinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Microphone'}</option>)}</select></label><label><span><Camera size={14}/> Camera</span><select value={settings.cameraId} disabled={isRecording} onChange={(event) => onSettingsChange({ cameraId: event.target.value })}><option value="">Default camera</option>{snapshot.devices.filter((device) => device.kind === 'videoinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Camera'}</option>)}</select></label></div><div className="tp-look-row"><label><span>Preview look</span><select value={settings.look} disabled={isRecording} onChange={(event) => onSettingsChange({ look: event.target.value })}>{looks.map((look) => <option key={look} value={look}>{titleCase(look)}</option>)}</select></label><Slider label="Look intensity" value={settings.lookIntensity} min={0} max={1} step={.05} display={`${Math.round(settings.lookIntensity * 100)}%`} disabled={settings.look === 'original' || isRecording} onChange={(lookIntensity) => onSettingsChange({ lookIntensity })}/></div><div className="tp-portrait-effects"><div className="tp-portrait-head"><div><span><Sparkles size={13}/> Portrait preview</span><small>Optional local mask · raw recording stays native</small></div>{!portraitPrepared ? <Button size="small" variant="secondary" disabled={portraitPreparing} onClick={() => void preparePortrait()}>{portraitPreparing ? 'Preparing…' : 'Prepare effects'}</Button> : <span className="mono tp-prepared-tag">READY</span>}</div><div className="tp-portrait-sliders"><Slider label="Background blur" value={effects.backgroundBlur} min={0} max={1} step={.05} display={`${Math.round(effects.backgroundBlur * 100)}%`} disabled={!portraitPrepared || isRecording} onChange={(backgroundBlur) => onSettingsChange({ portraitEffects: { ...effects, backgroundBlur } })}/><Slider label="Skin smoothing" value={effects.skinSmoothing} min={0} max={1} step={.05} display={`${Math.round(effects.skinSmoothing * 100)}%`} disabled={!portraitPrepared || isRecording} onChange={(skinSmoothing) => onSettingsChange({ portraitEffects: { ...effects, skinSmoothing } })}/></div>{portraitError && <p className="tp-portrait-error">{portraitError}</p>}{!portraitPrepared && <p className="tp-portrait-note">Prepare the local model to enable these controls. Only the preview is processed; the saved take remains the original camera stream.</p>}</div><div className="tp-switches"><Switch label="Monitor audio" description="Opt in to a quiet headphone feed." checked={settings.monitorAudio} disabled={isRecording} onChange={(monitorAudio) => onSettingsChange({ monitorAudio })}/><button type="button" className="tp-mic-test" onClick={onTestMic} disabled={!snapshot.stream || isRecording}><Volume2 size={15}/> Test microphone <span className="tp-meter-inline"><i style={{ width: `${Math.round(snapshot.level * 100)}%` }}/></span></button></div><details className="tp-advanced-capture"><summary><SlidersHorizontal size={15}/> Hardware controls <span className="mono">ONLY WHAT YOUR CAMERA EXPOSES</span></summary><HardwareControls capabilities={snapshot.capabilities} actualSettings={snapshot.actualSettings} settings={settings} onSettingsChange={onSettingsChange}/></details></section>
-    <div className="tp-capture-foot"><button type="button" onClick={onRequestStorage}><LockKeyhole size={14}/> Request persistent storage</button><span><Headphones size={13}/> Headphone monitoring is opt-in</span></div>
-    <p className="tp-limit-note">Editor export supports up to 1080p / 30 fps. Higher resolution and frame-rate originals remain available for download, and you can choose AutoEdit after recording.</p>
-  </div>
+
+    <div className="tp-record-surface-scrim" aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg, rgba(0,0,0,.8), transparent 24%, transparent 64%, rgba(0,0,0,.9))' }}/>
+
+    <header className="tp-record-topbar" style={{ position: 'absolute', top: 'max(52px, calc(env(safe-area-inset-top) + 42px))', left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', color: '#fff' }}>
+      <IconButton className="tp-record-top-back" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,.5)', color: '#fff', border: '1px solid rgba(255,255,255,.38)' }} label="Back to script" onClick={onBack} disabled={!onBack || isSaving}><ArrowLeft size={20}/></IconButton>
+      <div style={{ minWidth: 0, flex: 1 }}><span className="mono" style={{ display: 'block', fontSize: 10, opacity: .72, letterSpacing: '.08em' }}>RECORD</span><strong style={{ display: 'block', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{script.title || 'Untitled script'}</strong></div>
+      <Badge variant="outline" className="tp-record-resolution"><span className="mono">{resolution}</span><span style={{ marginLeft: 6 }}>{orientation === 'portrait' ? 'PORTRAIT' : 'LANDSCAPE'}</span></Badge>
+      {hasTorch && <IconButton label={torchOn ? 'Turn flash off' : 'Turn flash on'} onClick={() => onSettingsChange({ controls: { ...settings.controls, torch: !torchOn } })} disabled={controlsDisabled}><Zap size={18} fill={torchOn ? 'currentColor' : 'none'}/></IconButton>}
+    </header>
+
+    {reader && <div className="tp-record-reader-overlay" style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>{reader}</div>}
+    {reader && <style>{`.tp-record-reader-overlay .tp-reader-head,.tp-record-reader-overlay .tp-reader-controls{display:none!important}.tp-record-reader-overlay .tp-reader-wrap{pointer-events:none!important}.tp-record-reader-overlay .tp-reading-stage{pointer-events:none!important}`}</style>}
+
+    <div className="tp-record-status" role="status" aria-live="polite" style={{ position: 'absolute', top: 'max(112px, calc(env(safe-area-inset-top) + 100px))', left: 16, zIndex: 4, display: 'flex', alignItems: 'center', gap: 8, color: '#fff', pointerEvents: 'none' }}>
+      <span className={`tp-record-state-dot ${isRecording ? 'is-recording' : ''} ${isSaving ? 'is-saving' : ''}`} aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: isRecording ? '#ff3b30' : '#fff', opacity: isSaving ? .7 : 1 }}/>
+      <span className="mono" style={{ fontSize: 10, letterSpacing: '.08em' }}>{isRecording ? 'REC' : isSaving ? 'SAVING…' : isFailure ? 'RECOVERY' : unavailable ? 'READY TO OPEN' : 'READY'}</span>
+      {isRecording && <span className="mono" style={{ fontSize: 12 }}>{elapsedLabel(snapshot.elapsed)}</span>}
+    </div>
+
+    {snapshot.error && <div className="tp-record-alert" style={{ position: 'absolute', top: 'max(148px, calc(env(safe-area-inset-top) + 136px))', left: 16, right: 16, zIndex: 5 }}><Alert title="Recording needs attention" variant="destructive">{snapshot.error}</Alert></div>}
+
+    <footer className="tp-record-bottom-bar" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 18px max(20px, env(safe-area-inset-bottom))', color: '#fff' }}>
+      <div className="tp-record-bottom-meta" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 92 }}><Mic size={16}/><span className="mono" aria-label={`Microphone level ${Math.round(snapshot.level * 100)} percent`} style={{ fontSize: 11 }}>{Math.round(snapshot.level * 100)}%</span><span aria-hidden="true" style={{ width: 70, height: 4, background: 'rgba(255,255,255,.25)', borderRadius: 99, overflow: 'hidden' }}><i style={{ display: 'block', width: `${Math.round(snapshot.level * 100)}%`, height: '100%', background: '#fff', borderRadius: 99 }}/></span></div>
+        <span className="mono" style={{ fontSize: 12, opacity: .86 }}>{isRecording ? elapsedLabel(snapshot.elapsed) : '00:00'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 92, justifyContent: 'flex-end' }}>
+          {onPromptToggle && <IconButton className="tp-record-utility" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,.48)', color: '#fff', border: '1px solid rgba(255,255,255,.3)' }} label={promptPlaying ? 'Pause prompt' : 'Play prompt'} onClick={onPromptToggle} disabled={isSaving}>{promptPlaying ? <Pause size={18}/> : <Play size={18}/>}</IconButton>}
+          <IconButton className="tp-record-utility" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,.48)', color: '#fff', border: '1px solid rgba(255,255,255,.3)' }} label="Open capture settings" onClick={() => setSettingsOpen(true)} disabled={controlsDisabled}><Settings2 size={18}/></IconButton>
+          <IconButton className="tp-record-utility" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,.48)', color: '#fff', border: '1px solid rgba(255,255,255,.3)' }} label="Switch camera" onClick={onSwitchCamera} disabled={controlsDisabled || unavailable}><FlipHorizontal size={18}/></IconButton>
+        </div>
+      </div>
+
+      <div className="tp-record-shutter-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 26 }}>
+        <span aria-hidden="true" style={{ width: 44 }}/>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+          <button type="button" className={`tp-record-shutter ${isRecording ? 'is-recording' : ''}`} aria-label={isRecording ? 'Stop and save recording' : 'Start recording'} onClick={isRecording ? stop : start} disabled={unavailable || isSaving || isOpening || actionBusy || isFailure || !script.text.trim()} style={{ width: 78, height: 78, display: 'grid', placeItems: 'center', padding: 7, border: '3px solid #fff', borderRadius: '50%', background: 'transparent', color: isRecording ? '#ff3b30' : '#fff', cursor: 'pointer', opacity: unavailable || actionBusy ? .55 : 1 }}>
+            <span style={{ display: 'block', width: '100%', height: '100%', borderRadius: isRecording ? 11 : '50%', background: isRecording ? '#ff3b30' : '#fff', transition: 'border-radius 120ms ease' }}>{isRecording ? <Square size={25} fill="currentColor" strokeWidth={2} style={{ margin: '26px' }}/> : null}</span>
+          </button>
+          <span className="mono" style={{ fontSize: 9, opacity: .7, textAlign: 'center' }}>{isSaving ? 'SAVING…' : actionBusy ? 'WAIT…' : isRecording ? 'STOP' : 'REC'}</span>
+        </div>
+        <span aria-hidden="true" style={{ width: 44 }}/>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 18, fontSize: 10, opacity: .75 }}><ShieldCheck size={13}/><span>Prompt is a separate layer and is never burned into the take.</span></div>
+      {recoveryAvailable && <div style={{ display: 'flex', justifyContent: 'center' }}><Button size="small" variant="outline" onClick={onRecoveryDownload}><Video size={14}/> Download recovered take</Button></div>}
+    </footer>
+
+    <BottomSheet open={settingsOpen} onOpenChange={setSettingsOpen} title="Capture settings" description="Set the camera before the next take. Changes reopen the preview." >
+      <div className="tp-preflight-settings" style={{ display: 'grid', gap: 14 }}>
+        <div className="tp-preflight-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <NativeSelect label="Orientation" value={settings.portrait ? 'portrait' : 'landscape'} disabled={controlsDisabled} onChange={(event) => onSettingsChange({ portrait: event.target.value === 'portrait' })}><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></NativeSelect>
+          <NativeSelect label="Resolution" value={String(settings.resolution)} disabled={controlsDisabled} onChange={(event) => onSettingsChange({ resolution: Number(event.target.value) as CaptureSettings['resolution'] })}><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p</option></NativeSelect>
+          <NativeSelect label="Frame rate" value={String(settings.fps)} disabled={controlsDisabled} onChange={(event) => onSettingsChange({ fps: Number(event.target.value) as CaptureSettings['fps'] })}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></NativeSelect>
+          <NativeSelect label="Camera" value={settings.cameraId} disabled={controlsDisabled} onChange={(event) => onSettingsChange({ cameraId: event.target.value })}><option value="">Default camera</option>{snapshot.devices.filter((device) => device.kind === 'videoinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Camera'}</option>)}</NativeSelect>
+          <NativeSelect label="Microphone" value={settings.microphoneId} disabled={controlsDisabled} onChange={(event) => onSettingsChange({ microphoneId: event.target.value })}><option value="">Default microphone</option>{snapshot.devices.filter((device) => device.kind === 'audioinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Microphone'}</option>)}</NativeSelect>
+        </div>
+        <Switch label="Monitor audio" description="Send a quiet feed to headphones." checked={settings.monitorAudio} disabled={controlsDisabled} onChange={(monitorAudio) => onSettingsChange({ monitorAudio })}/>
+        <div className="tp-preflight-mic" style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Button variant="outline" size="small" onClick={testMic} disabled={unavailable || controlsDisabled || actionBusy}>{micTesting ? 'Listening…' : 'Test microphone'}</Button><span aria-hidden="true" style={{ flex: 1, height: 5, borderRadius: 99, background: 'rgba(255,255,255,.12)', overflow: 'hidden' }}><i style={{ display: 'block', width: `${Math.round(snapshot.level * 100)}%`, height: '100%', background: '#fff', borderRadius: 99 }}/></span><Volume2 size={15}/></div>
+        <details className="tp-preflight-advanced"><summary><RefreshCw size={14}/> Supported camera controls</summary><HardwareControls capabilities={snapshot.capabilities} settings={settings} onSettingsChange={onSettingsChange} disabled={controlsDisabled}/></details>
+        <Button variant="ghost" onClick={onRequestStorage} disabled={isSaving}><LockKeyhole size={15}/> Request persistent storage</Button>
+      </div>
+    </BottomSheet>
+  </section>;
 }

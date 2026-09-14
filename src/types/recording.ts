@@ -17,13 +17,9 @@ export interface ScriptDocument {
 export interface CaptureSettings {
   cameraId: string; microphoneId: string; facingMode: 'user' | 'environment';
   resolution: 720 | 1080 | 2160; fps: 24 | 25 | 30 | 50 | 60;
-  portrait: boolean; monitorAudio: boolean; look: string; lookIntensity: number;
+  /** Whether the requested/displayed recording orientation is vertical. */
+  portrait: boolean; monitorAudio: boolean;
   controls: Record<string, string | number | boolean>;
-  /** Optional preview/export effect controls; native source bytes remain untouched. */
-  portraitEffects?: {
-    backgroundBlur: number;
-    skinSmoothing: number;
-  };
 }
 export interface TakeRecord {
   id: string; scriptId: string; title: string; createdAt: number;

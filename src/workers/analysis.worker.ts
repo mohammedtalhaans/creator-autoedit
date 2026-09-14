@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { Input, BlobSource, ALL_FORMATS, AudioSampleSink } from 'mediabunny';
 import { analyzeSignal } from '../features/silence';
-import { AUDIO_RATE, resample, signalStats } from '../features/audio-enhance/dsp';
+import { AUDIO_RATE, signalStats } from '../features/audio/dsp';
 import { AudioTimeline } from '../features/media/audio-timeline';
 const scope = self as DedicatedWorkerGlobalScope;
 scope.onmessage = async (e: MessageEvent<{
@@ -38,9 +38,7 @@ scope.onmessage = async (e: MessageEvent<{
         const pcm = timeline.finish();
         scope.postMessage({ type: 'progress', detail: 'Finding the dead air' });
         const { waveform, pauses } = analyzeSignal(pcm, AUDIO_RATE);
-        scope.postMessage({ type: 'progress', detail: 'Preparing speech audio' });
-        const speech = resample(pcm, AUDIO_RATE, 16000);
-        scope.postMessage({ type: 'result', value: { pcm, speech, waveform, pauses, sourceStats: signalStats(pcm) } }, [pcm.buffer, speech.buffer]);
+        scope.postMessage({ type: 'result', value: { pcm, waveform, pauses, sourceStats: signalStats(pcm) } }, [pcm.buffer]);
     }
     catch (error) {
         scope.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });

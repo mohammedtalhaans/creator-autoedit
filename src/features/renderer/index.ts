@@ -1,7 +1,7 @@
 import type { Project, Phrase, CaptionConfig, AppearanceLook } from '../../types/project';
 import { EditMap } from '../edit-map';
 import { activePhrase, captionY, normalizeCaptionConfig } from '../captions';
-import { cropRect, faceAt } from '../framing';
+import { cropRect } from '../framing';
 export type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const FONTS = { studio: '"DM Sans Variable", sans-serif', condensed: '"Barlow Condensed", sans-serif', mono: '"JetBrains Mono Variable", monospace' };
@@ -219,7 +219,7 @@ export function renderFrame(ctx: Context, image: CanvasImageSource, sw: number, 
     }
     else {
         const index = map.rangeAtSource(sourceTime), punch = f.punch && index > 0 && index % 3 === 1 ? 1.035 : 1;
-        const crop = cropRect(sw, sh, width, height, f, faceAt(project.faces, sourceTime), punch);
+        const crop = cropRect(sw, sh, width, height, f, { x: .5, y: .37 }, punch);
         ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
     }
     if (gradeApplied)

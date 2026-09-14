@@ -15,9 +15,9 @@ const evidence = path.join(root, 'docs/evidence');
 fs.mkdirSync(evidence, { recursive: true });
 const roots = [
   'features/edit-map/index.ts', 'features/silence/index.ts', 'features/captions/index.ts',
-  'features/framing/index.ts', 'features/audio-enhance/dsp.ts', 'features/renderer/index.ts',
-  'features/exporter/paged-target.ts', 'workers/network-guard.ts', 'features/media/audio-timeline.ts',
-  'lib/errors.ts', 'lib/jobs.ts', 'features/transcription/model.ts', 'app/result-guards.ts',
+  'features/framing/index.ts', 'features/audio/dsp.ts', 'features/renderer/index.ts',
+  'features/exporter/paged-target.ts', 'features/media/audio-timeline.ts',
+  'lib/errors.ts', 'lib/jobs.ts', 'app/result-guards.ts',
   'features/exporter/integrity.ts',
 ];
 const options = {

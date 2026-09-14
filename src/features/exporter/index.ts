@@ -5,8 +5,7 @@ import { projectCuts } from '../silence';
 import { outputPhrases } from '../captions';
 import { dimensions } from '../framing';
 import { renderFrame, prepareFonts } from '../renderer';
-import { createPortraitProcessor, type PortraitEffectsConfig, type PortraitProcessor } from '../portrait-effects';
-import { AUDIO_RATE, audioBlock } from '../audio-enhance/dsp';
+import { AUDIO_RATE, audioBlock } from '../audio/dsp';
 import { supportedAvc } from '../media/capabilities';
 import { assertActive, yieldToBrowser } from '../../lib/utils';
 import { validateExport } from './integrity';
@@ -43,14 +42,11 @@ export async function exportVideo(project: Project, pcm: Float32Array | null, co
     canvas.height = height;
     let cancelled = false;
     let cancelPromise: Promise<void> | null = null;
-    const portraitConfig = project.recording?.portraitEffects as PortraitEffectsConfig | undefined;
-    const usePortrait = !!portraitConfig && (portraitConfig.backgroundBlur > 0 || portraitConfig.skinSmoothing > 0);
-    const portrait: PortraitProcessor | null = usePortrait ? createPortraitProcessor() : null;
     const cancelOutput = () => {
         cancelPromise ??= output.cancel().catch(() => undefined);
         return cancelPromise;
     };
-    const abort = () => { cancelled = true; portrait?.dispose(); input.dispose(); void cancelOutput(); };
+    const abort = () => { cancelled = true; input.dispose(); void cancelOutput(); };
     signal.addEventListener('abort', abort, { once: true });
     try {
         const ctx = canvas.getContext('2d', { alpha: false });
@@ -71,11 +67,6 @@ export async function exportVideo(project: Project, pcm: Float32Array | null, co
         const ticks = Array.from(renderClock(map, 30));
         const iterator = sink.canvasesAtTimestamps(ticks.map(t => Math.max(firstTimestamp, t.sourceTime)));
         const phrases = outputPhrases(project.words, map, project.captions.preset, project.captions);
-        if (portrait) {
-            onProgress({ detail: 'Preparing portrait effects', progress: undefined });
-            await portrait.prepare();
-            assertActive(signal);
-        }
         let frame = 0, audioWritten = 0;
         await output.start();
         for await (const decoded of iterator) {
@@ -83,16 +74,8 @@ export async function exportVideo(project: Project, pcm: Float32Array | null, co
             const tick = ticks[frame];
             if (!decoded)
                 throw new Error(`A source frame could not be decoded at ${tick.sourceTime.toFixed(2)} seconds. No incomplete file was saved.`);
-            let processed: ImageBitmap | null = null;
-            try {
-                if (portrait)
-                    processed = await portrait.process(decoded.canvas, decoded.canvas.width, decoded.canvas.height, portraitConfig!, tick.sourceTime * 1000);
-                assertActive(signal);
-                renderFrame(ctx, processed ?? decoded.canvas, processed?.width ?? decoded.canvas.width, processed?.height ?? decoded.canvas.height, width, height, project, map, phrases, tick.sourceTime);
-            }
-            finally {
-                processed?.close();
-            }
+            assertActive(signal);
+            renderFrame(ctx, decoded.canvas, decoded.canvas.width, decoded.canvas.height, width, height, project, map, phrases, tick.sourceTime);
             await video.add(tick.outputTime, tick.duration, { keyFrame: frame % 60 === 0 });
             if (audio && pcm) {
                 const until = Math.round((tick.outputTime + tick.duration) * AUDIO_RATE);
@@ -161,7 +144,6 @@ export async function exportVideo(project: Project, pcm: Float32Array | null, co
     }
     finally {
         signal.removeEventListener('abort', abort);
-        portrait?.dispose();
         if (cancelled)
             await cancelOutput();
         input.dispose();

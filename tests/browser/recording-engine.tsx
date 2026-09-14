@@ -7,7 +7,7 @@ import {
   recordingLibrary,
   stitchTakes,
 } from '../../src/features/recording';
-import type { ScriptDocument, TakeRecord } from '../../src/types/recording';
+import type { CaptureSettings, ScriptDocument, TakeRecord } from '../../src/types/recording';
 
 const script: ScriptDocument = {
   id: 'browser-recording-script',
@@ -20,8 +20,11 @@ const script: ScriptDocument = {
   settings: defaultPromptSettings,
 };
 
-async function capture(): Promise<TakeRecord> {
-  await recorder.open(defaultCaptureSettings);
+async function capture(settings: CaptureSettings = defaultCaptureSettings, options: { forceLandscapeSource?: boolean } = {}): Promise<TakeRecord> {
+  await recorder.open(settings);
+  if (options.forceLandscapeSource) {
+    try { await recorder.getSnapshot().stream?.getVideoTracks()[0]?.applyConstraints({ width: { exact: 640 }, height: { exact: 480 } }); } catch { /* Fake cameras may not expose applyConstraints. */ }
+  }
   await recorder.start(script, 0);
   await new Promise<void>((resolve) => setTimeout(resolve, 2_200));
   return recorder.stop(8);
@@ -36,6 +39,7 @@ async function inspect(id: string) {
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
     if (!video || !audio) throw new Error('Validated take is missing video or audio.');
+    const dimensions = await decodeDimensions(blob);
     return {
       id,
       status: take.status,
@@ -48,9 +52,28 @@ async function inspect(id: string) {
       audioCodec: await audio.getCodec(),
       canDecodeVideo: await video.canDecode(),
       canDecodeAudio: await audio.canDecode(),
+      videoWidth: dimensions.width,
+      videoHeight: dimensions.height,
     };
   } finally {
     input.dispose();
+  }
+}
+
+async function decodeDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+  const video = document.createElement('video');
+  const url = URL.createObjectURL(blob);
+  video.src = url;
+  video.muted = true;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('Video dimensions could not be decoded.'));
+      video.load();
+    });
+    return { width: video.videoWidth, height: video.videoHeight };
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 

@@ -43,10 +43,7 @@ export const defaultCaptureSettings: CaptureSettings = {
   fps: 30,
   portrait: true,
   monitorAudio: false,
-  look: 'natural',
-  lookIntensity: 0,
   controls: {},
-  portraitEffects: { backgroundBlur: 0, skinSmoothing: 0 },
 };
 
 export function clonePromptSettings(settings: PromptSettings = defaultPromptSettings): PromptSettings {
@@ -54,15 +51,18 @@ export function clonePromptSettings(settings: PromptSettings = defaultPromptSett
 }
 
 export function cloneCaptureSettings(settings: CaptureSettings = defaultCaptureSettings): CaptureSettings {
-  const effects: NonNullable<CaptureSettings['portraitEffects']> = settings.portraitEffects ?? { backgroundBlur: 0, skinSmoothing: 0 };
-  const baseEffects: NonNullable<CaptureSettings['portraitEffects']> = defaultCaptureSettings.portraitEffects ?? { backgroundBlur: 0, skinSmoothing: 0 };
+  // Older IndexedDB rows may still contain appearance/model fields. Pull the
+  // data through structuredClone for safety, then explicitly omit those legacy
+  // fields so they never re-enter the capture settings surface.
+  const cloned = structuredClone(settings) as CaptureSettings & {
+    look?: unknown;
+    lookIntensity?: unknown;
+    portraitEffects?: unknown;
+  };
+  const { look: _look, lookIntensity: _lookIntensity, portraitEffects: _portraitEffects, ...capture } = cloned;
   return {
     ...defaultCaptureSettings,
-    ...structuredClone(settings),
-    controls: { ...defaultCaptureSettings.controls, ...(settings.controls ?? {}) },
-    portraitEffects: {
-      backgroundBlur: Number.isFinite(effects.backgroundBlur) ? effects.backgroundBlur : baseEffects.backgroundBlur,
-      skinSmoothing: Number.isFinite(effects.skinSmoothing) ? effects.skinSmoothing : baseEffects.skinSmoothing,
-    },
+    ...capture,
+    controls: { ...defaultCaptureSettings.controls, ...(capture.controls ?? {}) },
   };
 }

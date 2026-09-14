@@ -16,10 +16,3 @@ export async function shareVideo(result: ExportResult) {
     }
     await navigator.share({ files: [file], title: 'My AutoEdit video' });
 }
-export async function clearModelCache() {
-    if (!('caches' in globalThis))
-        return;
-    for (const key of await caches.keys())
-        if (key.startsWith('creator-autoedit-models-'))
-            await caches.delete(key);
-}

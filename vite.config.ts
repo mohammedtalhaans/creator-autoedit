@@ -15,6 +15,6 @@ export default defineConfig({
   }],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   worker: { format: 'es' },
-  optimizeDeps: { exclude: ['@huggingface/transformers', '@mediapipe/tasks-vision', '@shiguredo/rnnoise-wasm', '@mediabunny/aac-encoder'] },
+  optimizeDeps: { exclude: ['@mediabunny/aac-encoder'] },
   build: { target: 'es2022', sourcemap: true, assetsInlineLimit: 0, chunkSizeWarningLimit: 1500 },
 });

@@ -1,50 +1,69 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Camera, ChevronRight, FileText, Library, Loader2, Radio, Sparkles, Video, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, History, Loader2, Radio, X } from 'lucide-react'
 import type { CaptureSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording'
-import { buildPromptTiming } from '../../features/teleprompter/timing'
 import { createScriptDocument, getRecordingRuntime } from '../../features/teleprompter/recordingBridge'
-import { LocalWritingController } from '../../features/teleprompter/localWriting'
 import { parsePrompt } from '../../features/teleprompter/text'
 import { restoreLocalFonts } from '../../features/teleprompter/fonts'
-import { Button, IconButton } from '../ui/primitives'
-import { Brand } from '../Brand'
+import { Alert, Button, IconButton, Stepper } from '../ui/primitives'
 import { PromptReader } from './PromptReader'
 import { RecordPanel } from './RecordPanel'
 import { ScriptPanel } from './ScriptPanel'
 import { TakesPanel } from './TakesPanel'
+import { TakeReview } from './TakeReview'
 
-export type TeleprompterStudioProps = {
+export interface TeleprompterStudioProps {
   onClose: () => void
+  onImportVideo?: () => void
+  initialReviewTakeId?: string
   onEditTake: (file: File, take: TakeRecord) => void
 }
 
-type StudioStep = 'script' | 'record' | 'takes'
+type StudioStep = 'script' | 'record' | 'review'
 
-export function TeleprompterStudio({ onClose, onEditTake }: TeleprompterStudioProps) {
+const FLOW_STEPS = [
+  { id: 'script', label: 'Script', description: 'Write your prompt' },
+  { id: 'record', label: 'Record', description: 'Capture a take' },
+  { id: 'review', label: 'Review', description: 'Choose what to keep' },
+  { id: 'edit', label: 'Edit', description: 'Shape the final cut' },
+] as const
+
+const STEP_LABEL: Record<StudioStep, string> = { script: 'Script', record: 'Record', review: 'Review' }
+
+function asStudioStep(value: unknown): StudioStep | null {
+  return value === 'script' || value === 'record' || value === 'review' ? value : null
+}
+
+export function TeleprompterStudio({ onClose, onImportVideo, initialReviewTakeId, onEditTake }: TeleprompterStudioProps) {
   const runtime = useMemo(() => getRecordingRuntime(), [])
   const { recordingLibrary, recorder } = runtime
   const [scripts, setScripts] = useState<ScriptDocument[]>([])
   const [activeId, setActiveId] = useState('')
   const [step, setStep] = useState<StudioStep>('script')
+  const [reviewTake, setReviewTake] = useState<TakeRecord | null>(null)
   const [takes, setTakes] = useState<TakeRecord[]>([])
   const [snapshot, setSnapshot] = useState<RecorderSnapshot>(() => recorder.getSnapshot())
   const [captureSettings, setCaptureSettings] = useState<CaptureSettings>(() => runtime.defaultCaptureSettings())
   const [loading, setLoading] = useState(true)
   const [takesLoading, setTakesLoading] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [recoveryAvailable, setRecoveryAvailable] = useState(false)
-  const writingRef = useRef(new LocalWritingController())
-  const [aiBusy, setAiBusy] = useState(false)
-  const [aiDraft, setAiDraft] = useState<string | null>(null)
-  const aiCancelRef = useRef(false)
+  const [promptPlaying, setPromptPlaying] = useState(false)
+  const [promptToggleRequest, setPromptToggleRequest] = useState(0)
   const scriptSaveTimer = useRef<number | undefined>(undefined)
+  const stepRef = useRef<StudioStep>('script')
+  const activeRef = useRef<ScriptDocument | null>(null)
+  const historyEntryRef = useRef(false)
+  const editorReturnRef = useRef(Boolean(initialReviewTakeId))
+  const closeRef = useRef(false)
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
   const active = useMemo(() => scripts.find((script) => script.id === activeId) ?? scripts[0] ?? createScriptDocument('Untitled script', ''), [activeId, scripts])
+  activeRef.current = active
+  stepRef.current = step
 
-  useEffect(() => {
-    void restoreLocalFonts()
-  }, [])
+  useEffect(() => { void restoreLocalFonts() }, [])
 
   useEffect(() => {
     const unsubscribe = recorder.subscribe(() => setSnapshot({ ...recorder.getSnapshot() }))
@@ -88,7 +107,37 @@ export function TeleprompterStudio({ onClose, onEditTake }: TeleprompterStudioPr
 
   useEffect(() => { if (!loading) void refreshTakes() }, [loading, refreshTakes])
 
-  useEffect(() => () => { window.clearTimeout(scriptSaveTimer.current); writingRef.current.dispose(); void recorder.close() }, [recorder])
+  useEffect(() => {
+    if (loading || !initialReviewTakeId) return
+    let cancelled = false
+    void recordingLibrary.getTake(initialReviewTakeId).then((take) => {
+      if (cancelled || !take) return
+      setReviewTake(take)
+      setStep('review')
+      try { window.history.replaceState({ creatorAutoEditPrompter: true, step: 'review' }, '', window.location.href); historyEntryRef.current = true } catch { /* Optional in embedded shells. */ }
+    }).catch((loadError) => { if (!cancelled) setError(loadError instanceof Error ? loadError.message : String(loadError)) })
+    return () => { cancelled = true }
+  }, [initialReviewTakeId, loading, recordingLibrary])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || historyEntryRef.current) return
+    try {
+      if (window.history.state?.creatorAutoEditPrompter) { historyEntryRef.current = true; return }
+      window.history.pushState({ creatorAutoEditPrompter: true, step: 'script' }, '', window.location.href)
+      historyEntryRef.current = true
+    } catch { historyEntryRef.current = false }
+  }, [])
+
+  const closeCamera = useCallback(async () => {
+    try { await recorder.close() } finally { setSnapshot({ ...recorder.getSnapshot() }) }
+  }, [recorder])
+
+  const persistScript = useCallback(async (doc: ScriptDocument) => {
+    window.clearTimeout(scriptSaveTimer.current)
+    const saved = await recordingLibrary.saveScript({ ...doc, updatedAt: Date.now() })
+    setScripts((current) => current.map((script) => script.id === saved.id ? saved : script))
+    return saved
+  }, [recordingLibrary])
 
   const updateScript = useCallback((patch: Partial<ScriptDocument>) => {
     setScripts((current) => current.map((script) => script.id === active.id ? { ...script, ...patch, updatedAt: Date.now() } : script))
@@ -104,22 +153,37 @@ export function TeleprompterStudio({ onClose, onEditTake }: TeleprompterStudioPr
   }, [recordingLibrary, runtime])
 
   const importScript = useCallback((result: { title: string; text: string }) => {
-    void recordingLibrary.saveScript(createScriptDocument(result.title, result.text, active.settings)).then((script) => { setScripts((current) => [script, ...current]); setActiveId(script.id); setNotice(`Imported “${script.title}” into the local script library.`) }).catch((importError) => setError(importError instanceof Error ? importError.message : String(importError)))
+    void recordingLibrary.saveScript(createScriptDocument(result.title, result.text, active.settings)).then((script) => { setScripts((current) => [script, ...current]); setActiveId(script.id); setNotice(`Imported “${script.title}” into the script library.`) }).catch((importError) => setError(importError instanceof Error ? importError.message : String(importError)))
   }, [active.settings, recordingLibrary])
 
   const deleteScript = useCallback(() => {
     if (scripts.length <= 1) { setNotice('Keep at least one script in the library.'); return }
     if (!window.confirm(`Delete “${active.title}”? Its recorded takes remain available.`)) return
-    void recordingLibrary.deleteScript(active.id).then(async () => { const remaining = scripts.filter((script) => script.id !== active.id); setScripts(remaining); setActiveId(remaining[0]?.id ?? ''); await refreshTakes(remaining[0]?.id) }).catch((deleteError) => setError(deleteError instanceof Error ? deleteError.message : String(deleteError)))
-  }, [active, recordingLibrary, refreshTakes, scripts])
+    void recordingLibrary.deleteScript(active.id).then(() => { const remaining = scripts.filter((script) => script.id !== active.id); setScripts(remaining); setActiveId(remaining[0]?.id ?? '') }).catch((deleteError) => setError(deleteError instanceof Error ? deleteError.message : String(deleteError)))
+  }, [active, recordingLibrary, scripts])
 
-  const openRecord = useCallback(async () => {
+  const pushStep = useCallback((next: StudioStep) => {
+    setStep(next)
+    try { window.history.pushState({ creatorAutoEditPrompter: true, step: next }, '', window.location.href); historyEntryRef.current = true } catch { /* History is optional in embedded test shells. */ }
+  }, [])
+
+  const openRecord = useCallback(async (replaceHistory = false) => {
     setError('')
-    setStep('record')
+    if (replaceHistory) {
+      setStep('record')
+      try { window.history.replaceState({ creatorAutoEditPrompter: true, step: 'record' }, '', window.location.href) } catch { /* Optional in embedded shells. */ }
+    } else pushStep('record')
     if (recorder.getSnapshot().stream) return
     try { await recorder.open(captureSettings); setSnapshot({ ...recorder.getSnapshot() }) }
     catch (openError) { setError(openError instanceof Error ? openError.message : String(openError)) }
-  }, [captureSettings, recorder])
+  }, [captureSettings, pushStep, recorder])
+
+  const continueScript = useCallback(async () => {
+    setError('')
+    if (!active.text.trim()) { setError('Add a few words before opening the camera.'); headingRef.current?.focus(); return }
+    try { await persistScript(active); await openRecord() }
+    catch (saveError) { setError(saveError instanceof Error ? saveError.message : String(saveError)) }
+  }, [active, openRecord, persistScript])
 
   const changeCaptureSettings = useCallback((patch: Partial<CaptureSettings>) => {
     const next = { ...captureSettings, ...patch, controls: { ...captureSettings.controls, ...(patch.controls ?? {}) } }
@@ -135,39 +199,113 @@ export function TeleprompterStudio({ onClose, onEditTake }: TeleprompterStudioPr
   const startRecording = useCallback(async () => {
     setError('')
     setRecoveryAvailable(false)
-    try {
-      const take = await recorder.start(active, active.cursor)
-      setSnapshot({ ...recorder.getSnapshot(), activeTake: take })
-      setNotice('Recording. The prompt scrolls independently from the camera capture.')
-    } catch (startError) { setError(startError instanceof Error ? startError.message : String(startError)) }
+    const take = await recorder.start(active, active.cursor)
+    setSnapshot({ ...recorder.getSnapshot(), activeTake: take })
   }, [active, recorder])
 
   const probeRecovery = useCallback(async () => {
-    try {
-      const blob = await recorder.getRecoveryBlob?.()
-      setRecoveryAvailable(Boolean(blob && blob.size > 0))
-    } catch { setRecoveryAvailable(false) }
+    try { const blob = await recorder.getRecoveryBlob?.(); setRecoveryAvailable(Boolean(blob && blob.size > 0)) }
+    catch { setRecoveryAvailable(false) }
   }, [recorder])
 
-  const stopRecording = useCallback(async () => {
+  const stopRecording = useCallback(async (): Promise<TakeRecord> => {
     setError('')
-    try { const take = await recorder.stop(active.cursor); setSnapshot({ ...recorder.getSnapshot(), activeTake: take }); await refreshTakes(); if (take.status !== 'complete') await probeRecovery(); setNotice(take.status === 'complete' ? 'Take saved to your local library.' : take.error ?? 'Take needs recovery before it can be edited.') }
-    catch (stopError) { await probeRecovery(); setError(stopError instanceof Error ? stopError.message : String(stopError)) }
-  }, [active.cursor, probeRecovery, recorder, refreshTakes])
+    try {
+      const take = await recorder.stop(active.cursor)
+      setSnapshot({ ...recorder.getSnapshot(), activeTake: take })
+      setReviewTake(take)
+      pushStep('review')
+      void refreshTakes()
+      if (take.status !== 'complete') await probeRecovery()
+      return take
+    } catch (stopError) {
+      await probeRecovery()
+      setError(stopError instanceof Error ? stopError.message : String(stopError))
+      throw stopError
+    }
+  }, [active.cursor, probeRecovery, pushStep, recorder, refreshTakes])
 
   const closeStudio = useCallback(async () => {
+    if (closeRef.current) return
+    closeRef.current = true
     setError('')
     try {
       const current = recorder.getSnapshot()
       if (current.status === 'recording' || current.status === 'saving') await recorder.stop(active.cursor)
-      if (recoveryAvailable && recorder.getSnapshot().status === 'error') {
-        setError('Recovered media is waiting. Download it before closing this recording session.')
+      await closeCamera()
+      onClose()
+    } catch (closeError) {
+      closeRef.current = false
+      await probeRecovery()
+      setError(closeError instanceof Error ? closeError.message : String(closeError))
+    }
+  }, [active.cursor, closeCamera, onClose, probeRecovery, recorder])
+
+  const navigateBack = useCallback(async (fromBrowser = false) => {
+    const currentStep = stepRef.current
+    const currentScript = activeRef.current ?? active
+    if (!fromBrowser && currentStep === 'review' && editorReturnRef.current && !recorder.getSnapshot().stream) {
+      editorReturnRef.current = false
+      setReviewTake(null)
+      pushStep('record')
+      try { await recorder.open(captureSettings) } catch (openError) { setError(openError instanceof Error ? openError.message : String(openError)) }
+      return
+    }
+    if (!fromBrowser && historyEntryRef.current) {
+      try { window.history.back(); return } catch { /* Fall through to direct navigation. */ }
+    }
+    if (currentStep === 'script') { await closeStudio(); return }
+    if (currentStep === 'review') {
+      setReviewTake(null)
+      if (fromBrowser) setStep('record'); else pushStep('record')
+      if (!recorder.getSnapshot().stream) { try { await recorder.open(captureSettings) } catch (openError) { setError(openError instanceof Error ? openError.message : String(openError)) } }
+      return
+    }
+    const current = recorder.getSnapshot()
+    if (current.status === 'recording' || current.status === 'saving') {
+      try { await recorder.stop(currentScript.cursor) } catch (stopError) { setError(stopError instanceof Error ? stopError.message : String(stopError)); return }
+    }
+    await closeCamera()
+    setReviewTake(null)
+    if (fromBrowser) setStep('script'); else pushStep('script')
+  }, [active, captureSettings, closeCamera, closeStudio, pushStep, recorder])
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      if (closeRef.current) return
+      const target = asStudioStep(event.state?.creatorAutoEditPrompter ? event.state.step : null)
+      if (!target) { void closeStudio(); return }
+      if (target === 'record') {
+        setReviewTake(null)
+        setStep('record')
+        if (!recorder.getSnapshot().stream) void recorder.open(captureSettings).then(() => setSnapshot({ ...recorder.getSnapshot() })).catch((openError) => setError(openError instanceof Error ? openError.message : String(openError)))
         return
       }
-      await recorder.close()
-      onClose()
-    } catch (closeError) { await probeRecovery(); setError(closeError instanceof Error ? closeError.message : String(closeError)) }
-  }, [active.cursor, onClose, probeRecovery, recorder, recoveryAvailable])
+      if (target === 'script') {
+        const current = recorder.getSnapshot()
+        const finish = async () => {
+          if (current.status === 'recording' || current.status === 'saving') {
+            try { await recorder.stop(activeRef.current?.cursor ?? 0) } catch (stopError) { setError(stopError instanceof Error ? stopError.message : String(stopError)); return }
+          }
+          await closeCamera()
+          setReviewTake(null)
+          setStep('script')
+        }
+        void finish()
+        return
+      }
+      if (target === 'review' && reviewTake) setStep('review')
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [captureSettings, closeCamera, closeStudio, recorder, reviewTake])
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => headingRef.current?.focus())
+    return () => window.cancelAnimationFrame(id)
+  }, [step])
+
+  useEffect(() => () => { window.clearTimeout(scriptSaveTimer.current); void recorder.close() }, [recorder])
 
   const editTake = useCallback(async (take: TakeRecord) => {
     try {
@@ -188,62 +326,56 @@ export function TeleprompterStudio({ onClose, onEditTake }: TeleprompterStudioPr
     } catch (takeError) { setError(takeError instanceof Error ? takeError.message : String(takeError)) }
   }, [recordingLibrary])
 
-  const downloadRecovery = useCallback(async () => {
-    try {
-      const blob = await recorder.getRecoveryBlob?.()
-      if (!blob || blob.size === 0) throw new Error('No recovered media bytes are available yet.')
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `${active.title || 'recovered-take'}.recovered.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`
-      anchor.click()
-      window.setTimeout(() => URL.revokeObjectURL(url), 0)
-      setNotice('Recovered media download started. The partial take remains in the library for repair.')
-    } catch (recoveryError) { setError(recoveryError instanceof Error ? recoveryError.message : String(recoveryError)) }
-  }, [active.title, recorder])
-
   const retake = useCallback((take: TakeRecord) => {
     const prompt = parsePrompt(active.text)
     const current = prompt.spokenTokens[Math.max(0, Math.min(prompt.spokenTokens.length - 1, take.startWord))]
     const rewindToSentence = Math.max(0, (current?.sentence ?? 0) - 1)
     const target = prompt.spokenTokens.findIndex((token) => token.sentence >= rewindToSentence)
+    const replaceHistory = stepRef.current === 'review'
     updateScript({ cursor: target < 0 ? Math.max(0, take.startWord - 10) : target })
-    void openRecord()
-  }, [active.text, openRecord, updateScript])
-  const starTake = useCallback((take: TakeRecord) => { void recordingLibrary.updateTake(take.id, { starred: !take.starred }).then(() => refreshTakes()).catch((takeError) => setError(takeError instanceof Error ? takeError.message : String(takeError))) }, [recordingLibrary, refreshTakes])
-  const deleteTake = useCallback((take: TakeRecord) => { if (!window.confirm(`Delete ${take.title || 'this take'}?`)) return; void recordingLibrary.deleteTake(take.id).then(() => refreshTakes()).catch((takeError) => setError(takeError instanceof Error ? takeError.message : String(takeError))) }, [recordingLibrary, refreshTakes])
-  const requestStorage = useCallback(() => { void recorder.requestPersistentStorage?.().then((granted) => setNotice(granted ? 'Persistent storage granted for the recording library.' : 'Storage persistence was not granted; keep external downloads for important takes.')).catch((storageError) => setError(storageError instanceof Error ? storageError.message : String(storageError))) }, [recorder])
-  const testMic = useCallback(() => { void recorder.testMicrophone().then(() => setNotice('Microphone test complete. Check the live meter beside the controls.')).catch((micError) => setError(micError instanceof Error ? micError.message : String(micError))) }, [recorder])
-
-  const generateDraft = useCallback(async (request: { mode: 'rewrite' | 'topic'; brief: string; tone: string; targetSeconds: number }) => {
-    aiCancelRef.current = false
-    setAiBusy(true); setAiDraft(null); setError('')
-    try {
-      const source = request.mode === 'topic' ? request.brief : active.text
-      const instruction = request.mode === 'topic'
-        ? `Create a spoken teleprompter script from this topic brief. Use a ${request.tone} tone, target about ${request.targetSeconds} seconds, and return only the script text. Keep it practical and easy to say aloud.`
-        : `Rewrite this spoken teleprompter script for clarity and natural delivery. Use a ${request.tone} tone, keep the meaning and director cues, target about ${request.targetSeconds} seconds, and return only the revised script.`
-      setAiDraft(await writingRef.current.generate(source, { instruction, maxNewTokens: Math.min(320, Math.max(96, Math.round(request.targetSeconds * 3.2))) }))
+    editorReturnRef.current = false
+    setReviewTake(null)
+    setHistoryOpen(false)
+    if (replaceHistory && recorder.getSnapshot().stream) {
+      try { window.history.back(); return } catch { /* Fall through to opening the current record surface. */ }
     }
-    catch (draftError) { if (!aiCancelRef.current) setError(draftError instanceof Error ? draftError.message : String(draftError)) }
-    finally { setAiBusy(false) }
-  }, [active.text])
-  const cancelDraft = useCallback(() => { aiCancelRef.current = true; writingRef.current.cancel(); setAiBusy(false); setNotice('Local draft cancelled. Your original script is unchanged.') }, [])
+    void openRecord(replaceHistory)
+  }, [active.text, openRecord, recorder, updateScript])
 
-  const readerProps = { script: active, settings: active.settings, onCursorChange: (cursor: number) => updateScript({ cursor }), stream: step === 'record' ? snapshot.stream : null, recording: step === 'record', captureActive: step === 'record' && snapshot.status === 'recording', onVoiceStatus: (_status: 'idle' | 'preparing' | 'ready' | 'listening' | 'paused' | 'error', detail?: string) => { if (detail) setNotice(detail) } }
+  const retakeReview = useCallback(() => { if (reviewTake) retake(reviewTake) }, [retake, reviewTake])
+  const backFromReview = useCallback(() => { void navigateBack() }, [navigateBack])
+  const keepReview = useCallback(() => { if (reviewTake) void editTake(reviewTake) }, [editTake, reviewTake])
+  const favouriteReview = useCallback((starred: boolean) => {
+    if (!reviewTake) return
+    void recordingLibrary.updateTake(reviewTake.id, { starred }).then((saved) => { if (saved) setReviewTake(saved); void refreshTakes() }).catch((takeError) => setError(takeError instanceof Error ? takeError.message : String(takeError)))
+  }, [recordingLibrary, refreshTakes, reviewTake])
+  const requestStorage = useCallback(() => { void recorder.requestPersistentStorage?.().then((granted) => setNotice(granted ? 'Persistent storage granted for the recording library.' : 'Storage persistence was not granted; download important takes.')).catch((storageError) => setError(storageError instanceof Error ? storageError.message : String(storageError))) }, [recorder])
+  const testMic = useCallback(() => { void recorder.testMicrophone().then(() => setNotice('Microphone test complete.')).catch((micError) => setError(micError instanceof Error ? micError.message : String(micError))) }, [recorder])
 
-  if (loading) return <div className="tp-studio tp-loading"><Loader2 className="spin" size={20}/><span>Opening your local script library…</span></div>
+  const readerProps = { script: active, settings: active.settings, onCursorChange: (cursor: number) => updateScript({ cursor }), compact: true, captureActive: step === 'record' && snapshot.status === 'recording', onPlayingChange: setPromptPlaying }
+  const openPromptHistory = () => { setHistoryOpen((open) => !open); void refreshTakes() }
 
-  return <div className="tp-studio">
-    <header className="tp-studio-header"><div className="tp-brand"><Brand compact onClick={() => void closeStudio()}/><span className="tp-header-divider"/><span className="eyebrow-small">PROMPTER STUDIO</span></div><div className="tp-steps" role="tablist" aria-label="Studio steps">{([['script', 'Script', FileText], ['record', 'Record', Video], ['takes', 'Takes', Library]] as const).map(([id, label, Icon]) => <button key={id} type="button" role="tab" aria-selected={step === id} className={step === id ? 'is-active' : ''} onClick={() => id === 'record' ? void openRecord() : (setStep(id), id === 'takes' && void refreshTakes())}><span className="tp-step-icon"><Icon size={15}/></span><span>{label}</span>{id !== 'takes' && <ChevronRight size={13}/>}</button>)}</div><IconButton label="Close prompter studio" onClick={() => void closeStudio()}><X size={18}/></IconButton></header>
-    {error && <div className="tp-global-alert" role="alert"><Radio size={16}/><span>{error}</span><button type="button" onClick={() => setError('')}>Dismiss</button></div>}
-    {notice && <div className="tp-global-notice" role="status"><Sparkles size={15}/><span>{notice}</span><button type="button" onClick={() => setNotice('')}>×</button></div>}
-    <main className={`tp-studio-main tp-step-${step}`}>
-      {step === 'script' && <ScriptPanel scripts={scripts} active={active} onSelect={(id) => { setActiveId(id); setAiDraft(null) }} onChange={updateScript} onCreate={createScript} onDelete={deleteScript} onImport={importScript} onGenerate={(request) => void generateDraft(request)} onCancelGenerate={cancelDraft} aiBusy={aiBusy} aiDraft={aiDraft} onApplyDraft={() => { if (aiDraft) { updateScript({ text: aiDraft }); setAiDraft(null); setNotice('Draft applied. Your source is still available in browser history until you edit again.') } }} onDiscardDraft={() => setAiDraft(null)}/>} 
-      {step === 'script' && <section className="tp-reader-column"><div className="tp-reader-column-head"><div><span className="eyebrow-small">READING WINDOW</span><h1>{active.title || 'Untitled script'}</h1></div><div className="tp-reader-head-actions"><Button variant="secondary" onClick={() => void openRecord()}><Camera size={15}/> Record with camera</Button></div></div><PromptReader {...readerProps}/></section>}
-      {step === 'record' && <RecordPanel snapshot={snapshot} settings={captureSettings} script={active} reader={<PromptReader {...readerProps} compact/>} recoveryAvailable={recoveryAvailable} onSettingsChange={changeCaptureSettings} onOpen={openRecord} onStart={() => void startRecording()} onStop={() => void stopRecording()} onTestMic={testMic} onRequestStorage={requestStorage} onRecoveryDownload={() => void downloadRecovery()} onSwitchCamera={() => { void recorder.switchCamera(captureSettings).then(() => setSnapshot({ ...recorder.getSnapshot() })).catch((switchError) => setError(switchError instanceof Error ? switchError.message : String(switchError))) }}/>} 
-      {step === 'takes' && <TakesPanel takes={takes} loading={takesLoading} onStar={starTake} onDelete={deleteTake} onDownload={downloadTake} onEdit={(take) => void editTake(take)} onRetake={retake}/>} 
-    </main>
-    {step === 'script' && <footer className="tp-studio-footer"><span><FileText size={14}/> {active.text.trim() ? 'Autosaves locally as you write.' : 'Paste a script to unlock recording.'}</span><span className="mono">{buildPromptTiming(parsePrompt(active.text), active.settings).estimatedSeconds ? 'LOCAL READY' : 'WAITING FOR SCRIPT'}</span></footer>}
+  if (loading) return <div className="tp-studio tp-loading"><Loader2 className="spin" size={20}/><span>Opening your script library…</span></div>
+
+  return <div className={`tp-studio tp-current-${step}`}>
+    {step !== 'record' && step !== 'review' && <header className="tp-studio-header">
+      <IconButton label="Back to home" onClick={() => void navigateBack()}><ArrowLeft size={19}/></IconButton>
+      <div className="tp-studio-title"><span className="eyebrow-small">CREATOR AUTOEDIT</span><h1 ref={headingRef} tabIndex={-1}>{STEP_LABEL[step]}</h1></div>
+      <Stepper className="tp-progress" steps={FLOW_STEPS.map((item) => ({ ...item, disabled: item.id !== step }))} current={step}/>
+      <IconButton label={historyOpen ? 'Close take history' : 'Open take history'} onClick={openPromptHistory}><History size={18}/></IconButton>
+    </header>}
+    {step === 'record' && null}
+    {step === 'review' && null}
+    {(step === 'record' || step === 'review') && <div className="tp-fullscreen-progress" aria-label="Recording flow progress"><Stepper className="tp-progress" steps={FLOW_STEPS.map((item) => ({ ...item, disabled: true }))} current={step}/></div>}
+    {error && step !== 'record' && step !== 'review' && <Alert className="tp-global-alert" title="Something needs attention" variant="destructive"><span>{error}</span><IconButton label="Dismiss error" onClick={() => setError('')}><X size={15}/></IconButton></Alert>}
+    {notice && <div className="tp-global-notice" role="status"><Radio size={15}/><span>{notice}</span><IconButton label="Dismiss notification" onClick={() => setNotice('')}><X size={15}/></IconButton></div>}
+
+    {step === 'script' && <main className="tp-studio-main tp-step-script"><ScriptPanel scripts={scripts} active={active} onSelect={(id) => setActiveId(id)} onChange={updateScript} onCreate={createScript} onDelete={deleteScript} onImport={importScript}/></main>}
+    {step === 'record' && <RecordPanel snapshot={snapshot} settings={captureSettings} script={active} reader={<PromptReader {...readerProps} toggleRequest={promptToggleRequest}/>} onBack={() => void navigateBack()} onSettingsChange={changeCaptureSettings} onOpen={openRecord} onStart={startRecording} onStop={stopRecording} onTestMic={testMic} onRequestStorage={requestStorage} onRecoveryDownload={() => void recorder.getRecoveryBlob?.().then((blob) => { if (!blob) throw new Error('No recovered media bytes are available yet.'); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${active.title || 'recovered-take'}.recovered.webm`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0) }).catch((downloadError) => setError(downloadError instanceof Error ? downloadError.message : String(downloadError)))} onSwitchCamera={() => { void recorder.switchCamera(captureSettings).then(() => setSnapshot({ ...recorder.getSnapshot() })).catch((switchError) => setError(switchError instanceof Error ? switchError.message : String(switchError))) }} recoveryAvailable={recoveryAvailable} onPromptToggle={() => setPromptToggleRequest((request) => request + 1)} promptPlaying={promptPlaying}/>}
+    {step === 'review' && reviewTake && <TakeReview take={reviewTake} loadBlob={() => recordingLibrary.getTakeBlob(reviewTake.id)} onBack={backFromReview} onRetake={retakeReview} onKeep={keepReview} onDownload={() => void downloadTake(reviewTake)} onFavourite={favouriteReview}/>}
+
+    {step === 'script' && <footer className="tp-flow-actions" aria-label="Script actions"><Button variant="ghost" onClick={onImportVideo} disabled={!onImportVideo}>Import video</Button><Button variant="primary" onClick={() => void continueScript()}>Continue<ArrowRight size={17}/></Button></footer>}
+
+    {historyOpen && <div className="tp-history-layer" role="dialog" aria-modal="true" aria-label="Take history"><button className="tp-history-backdrop" type="button" aria-label="Close take history" onClick={() => setHistoryOpen(false)}/><aside className="tp-history-drawer"><header><div><span className="eyebrow-small">HISTORY</span><h2>Your takes</h2></div><IconButton label="Close take history" onClick={() => setHistoryOpen(false)}><X size={18}/></IconButton></header><TakesPanel takes={takes} loading={takesLoading} onStar={(take) => { void recordingLibrary.updateTake(take.id, { starred: !take.starred }).then(() => refreshTakes()).catch((takeError) => setError(takeError instanceof Error ? takeError.message : String(takeError))) }} onDelete={(take) => { if (!window.confirm(`Delete ${take.title || 'this take'}?`)) return; void recordingLibrary.deleteTake(take.id).then(() => refreshTakes()).catch((takeError) => setError(takeError instanceof Error ? takeError.message : String(takeError))) }} onDownload={(take) => void downloadTake(take)} onEdit={(take) => void editTake(take)} onRetake={retake}/></aside></div>}
   </div>
 }

@@ -13,7 +13,7 @@ export type WorkerMessage<T> = WorkerProgress | {
     type: 'error';
     message: string;
 };
-/** One worker per cancellable operation. Termination aborts WASM/ML even while JS is blocked. */
+/** One worker per cancellable media operation. */
 export class Jobs {
     private active = new Map<string, AbortController>();
     start(name: string): AbortSignal { this.cancel(name); const c = new AbortController(); this.active.set(name, c); return c.signal; }

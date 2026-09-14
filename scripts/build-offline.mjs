@@ -54,7 +54,7 @@ async function cacheFirst(request, cacheName) {
   if (hit) return hit;
   const response = await fetch(request);
   if (response.ok) {
-    // A full runtime cache must never turn a successful model/WASM response
+    // A full runtime cache must never turn a successful runtime response
     // into a failed application request when storage is temporarily full.
     try { await cache.put(request, response.clone()); } catch { /* best effort */ }
   }
@@ -91,8 +91,8 @@ self.addEventListener('fetch', (event) => {
 /**
  * Emit a scope-safe service worker alongside the Vite output. The shell list
  * is derived from the actual hashed bundle so stale source names never enter
- * the precache. Runtime/model assets remain an allowlisted cache-on-first-use
- * path and are intentionally excluded from the initial install.
+ * the precache. Runtime assets remain an allowlisted cache-on-first-use path
+ * and are intentionally excluded from the initial install.
  */
 export function offlineServiceWorker(options = {}) {
   const base = normalizeBase(options.base || process.env.BASE_PATH || '/creator-autoedit/');

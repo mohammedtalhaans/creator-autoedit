@@ -15,7 +15,7 @@ export const defaultCaptions: CaptionConfig = {
     y: .71,
     align: 'center',
     color: '#fff8e8',
-    accent: '#b8ff4d',
+    accent: '#ffffff',
     background: false,
     opacity: .7,
     shadow: true,
