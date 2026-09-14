@@ -98,31 +98,31 @@ describe('capture orientation negotiation', () => {
     expect(fill.contentRect.x).toBeLessThan(0);
   });
 
-  it('auto rotation keeps the decoded source shape while changing display axes', () => {
+  it('does not infer rotation from landscape dimensions alone', () => {
     const transform = resolveCaptureTransform({ sourceWidth: 1920, sourceHeight: 1080, targetWidth: 1080, targetHeight: 1920, requestedPortrait: true, rotation: 'auto', framingMode: 'fit' });
-    expect(transform.rotation).toBe(90);
-    expect(transform.displayWidth).toBe(1080);
-    expect(transform.displayHeight).toBe(1920);
-    expect(transform.contentRect).toMatchObject({ x: 0, y: 0, width: 1080, height: 1920 });
+    expect(transform.rotation).toBe(0);
+    expect(transform.displayWidth).toBe(1920);
+    expect(transform.displayHeight).toBe(1080);
+    expect(transform.contentRect).toMatchObject({ x: 0, y: 656.25, width: 1080, height: 607.5 });
   });
 
-  it('centers bars for a 4:3 source in portrait Full view', () => {
+  it('centers a landscape 4:3 source without rotating it in Auto', () => {
     const transform = resolveCaptureTransform({ sourceWidth: 640, sourceHeight: 480, targetWidth: 1080, targetHeight: 1920, requestedPortrait: true, rotation: 'auto', framingMode: 'fit' });
-    expect(transform.rotation).toBe(90);
-    expect(transform.scale).toBeCloseTo(2.25);
+    expect(transform.rotation).toBe(0);
+    expect(transform.scale).toBeCloseTo(1.6875);
     expect(transform.drawWidth).toBeCloseTo(1080);
-    expect(transform.drawHeight).toBeCloseTo(1440);
-    expect(transform.offsets).toEqual({ x: 0, y: 240 });
-    expect(transform.contentRect).toEqual({ x: 0, y: 240, width: 1080, height: 1440 });
+    expect(transform.drawHeight).toBeCloseTo(810);
+    expect(transform.offsets).toEqual({ x: 0, y: 555 });
+    expect(transform.contentRect).toEqual({ x: 0, y: 555, width: 1080, height: 810 });
   });
 
   it('crops only when Fill view is explicitly selected', () => {
     const transform = resolveCaptureTransform({ sourceWidth: 640, sourceHeight: 480, targetWidth: 1080, targetHeight: 1920, requestedPortrait: true, rotation: 'auto', framingMode: 'fill' });
-    expect(transform.rotation).toBe(90);
-    expect(transform.scale).toBe(3);
-    expect(transform.drawWidth).toBe(1440);
+    expect(transform.rotation).toBe(0);
+    expect(transform.scale).toBe(4);
+    expect(transform.drawWidth).toBe(2560);
     expect(transform.drawHeight).toBe(1920);
-    expect(transform.offsetX).toBe(-180);
+    expect(transform.offsetX).toBe(-740);
     expect(transform.offsetY).toBe(0);
   });
 
@@ -145,6 +145,13 @@ describe('capture orientation negotiation', () => {
   it('uses the same resolved transform for preview descriptors', () => {
     const settings = { ...defaultCaptureSettings, portrait: true, framingMode: 'fit' as const, rotation: 'auto' as const };
     const transform = previewTransform(settings, { video: { width: 640, height: 480 } }, 640, 480);
+    expect(transform.rotation).toBe(0);
+    expect(transform.contentRect).toEqual({ x: 0, y: 555, width: 1080, height: 810 });
+  });
+
+  it('uses explicit camera rotation metadata in Auto mode', () => {
+    const settings = { ...defaultCaptureSettings, portrait: true, framingMode: 'fit' as const, rotation: 'auto' as const };
+    const transform = previewTransform(settings, { video: { width: 640, height: 480, rotation: 90 } }, 640, 480);
     expect(transform.rotation).toBe(90);
     expect(transform.contentRect).toEqual({ x: 0, y: 240, width: 1080, height: 1440 });
   });

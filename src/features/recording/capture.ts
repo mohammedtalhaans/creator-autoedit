@@ -122,10 +122,19 @@ function positiveDimension(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-function resolvedRotation(rotation: CaptureSettings['rotation'], sourceWidth: number, sourceHeight: number, requestedPortrait: boolean): 0 | 90 | 270 {
+function resolvedRotation(rotation: CaptureSettings['rotation']): 0 | 90 | 270 {
   if (rotation === 0 || rotation === 90 || rotation === 270) return rotation;
-  const sourcePortrait = sourceHeight > sourceWidth;
-  return sourcePortrait === requestedPortrait ? 0 : 90;
+  // WebKit can expose landscape track dimensions while already presenting the
+  // camera upright. Dimensions alone are therefore not rotation metadata.
+  // Auto remains unrotated unless the camera reports a real quarter-turn; the
+  // caller resolves that metadata before reaching this pure transform.
+  return 0;
+}
+
+function reportedRotation(settings: CaptureSettings, actualVideo: Record<string, unknown>): CaptureSettings['rotation'] {
+  if (settings.rotation !== 'auto') return settings.rotation;
+  const value = normalizeRotation(actualVideo.rotation);
+  return value === 90 || value === 270 ? value : 0;
 }
 
 /**
@@ -140,7 +149,7 @@ export function resolveCaptureTransform(input: CaptureTransformInput): CaptureTr
   const targetHeight = positiveDimension(input.targetHeight, 1);
   const requestedPortrait = Boolean(input.requestedPortrait);
   const framingMode: CaptureSettings['framingMode'] = input.framingMode === 'fill' ? 'fill' : 'fit';
-  const rotation = resolvedRotation(input.rotation, sourceWidth, sourceHeight, requestedPortrait);
+  const rotation = resolvedRotation(input.rotation);
   const quarterTurn = rotation === 90 || rotation === 270;
   const displayWidth = quarterTurn ? sourceHeight : sourceWidth;
   const displayHeight = quarterTurn ? sourceWidth : sourceHeight;
@@ -216,7 +225,7 @@ export function previewTransform(settings: CaptureSettings, actualSettings: Reco
     targetWidth: dimensions.width,
     targetHeight: dimensions.height,
     requestedPortrait: settings.portrait,
-    rotation: settings.rotation ?? 'auto',
+    rotation: reportedRotation(settings, actualVideo),
     framingMode: settings.framingMode ?? 'fit',
   });
 }
@@ -412,13 +421,14 @@ async function createCaptureComposition(source: MediaStream, settings: CaptureSe
       return null;
     }
     const dimensions = requestedDimensions(settings);
+    const actualVideo = (actualSettings.video ?? {}) as Record<string, unknown>;
     const transform = resolveCaptureTransform({
       sourceWidth,
       sourceHeight,
       targetWidth: dimensions.width,
       targetHeight: dimensions.height,
       requestedPortrait: settings.portrait,
-      rotation: settings.rotation ?? 'auto',
+      rotation: reportedRotation(settings, actualVideo),
       framingMode: settings.framingMode ?? 'fit',
     });
     canvas.width = dimensions.width;

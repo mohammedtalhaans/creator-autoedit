@@ -43,9 +43,10 @@ test.describe('phone first Script to Record to Review flow', () => {
     const cameraFrame = await page.evaluate(() => {
       const canvas = document.querySelector('canvas[aria-label="Camera preview image"]') as HTMLCanvasElement | null;
       const content = canvas?.getAttribute('data-content-rect');
-      return { rect: canvas?.getBoundingClientRect(), targetWidth: canvas?.width ?? 0, targetHeight: canvas?.height ?? 0, framingMode: canvas?.dataset.framingMode ?? '', content: content ? JSON.parse(content) as { x: number; y: number; width: number; height: number } : null };
+      return { rect: canvas?.getBoundingClientRect(), targetWidth: canvas?.width ?? 0, targetHeight: canvas?.height ?? 0, framingMode: canvas?.dataset.framingMode ?? '', rotation: canvas?.dataset.rotation ?? '', content: content ? JSON.parse(content) as { x: number; y: number; width: number; height: number } : null };
     });
     expect(cameraFrame.framingMode).toBe('fit');
+    expect(cameraFrame.rotation).toBe('0');
     expect(cameraFrame.rect?.width ?? 0).toBeGreaterThan(0);
     expect(cameraFrame.rect?.height ?? 0).toBeGreaterThan(0);
     expect(cameraFrame.content?.x ?? -1).toBeGreaterThanOrEqual(-1);
@@ -54,6 +55,18 @@ test.describe('phone first Script to Record to Review flow', () => {
     expect((cameraFrame.content?.y ?? 0) + (cameraFrame.content?.height ?? 0)).toBeLessThanOrEqual(cameraFrame.targetHeight + 1);
     mediaCalls.push(...await page.evaluate(() => (window as typeof window & { __phoneFlowMediaCalls?: unknown[] }).__phoneFlowMediaCalls ?? []));
     expect(mediaCalls.length).toBeGreaterThan(0);
+    const promptScroll = page.locator('.tp-reader-compact .tp-script-scroll');
+    const promptWords = page.locator('.tp-reader-compact button[data-spoken-index]');
+    await expect(page.getByText('Scroll · tap a word', { exact: true })).toBeVisible();
+    await expect(promptWords).toHaveCount(19);
+    expect(await promptScroll.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+    const jumpWord = promptWords.nth(9);
+    await jumpWord.scrollIntoViewIfNeeded();
+    await jumpWord.click();
+    await expect(jumpWord).toHaveAttribute('aria-current', 'true');
+    await promptWords.first().scrollIntoViewIfNeeded();
+    await promptWords.first().click();
+    await expect(promptWords.first()).toHaveAttribute('aria-current', 'true');
     const recordGeometry = await page.evaluate(() => ({
       scrollHeight: document.scrollingElement?.scrollHeight ?? 0,
       viewportHeight: innerHeight,
@@ -77,6 +90,12 @@ test.describe('phone first Script to Record to Review flow', () => {
     await page.screenshot({ path: resolve(evidenceDir, 'record-normal-view.png'), fullPage: false });
     await page.getByRole('button', { name: 'Start recording', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Stop and save recording', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pause prompt', exact: true })).toBeVisible();
+    await promptScroll.dispatchEvent('pointerdown', { pointerType: 'touch' });
+    await expect(page.getByRole('button', { name: 'Play prompt', exact: true })).toBeVisible();
+    await jumpWord.scrollIntoViewIfNeeded();
+    await jumpWord.click();
+    await expect(jumpWord).toHaveAttribute('aria-current', 'true');
     await page.waitForTimeout(300);
     const captureBeforePromptEdit = await page.evaluate(() => {
       const video = document.querySelector('video[aria-label="Camera preview"]') as HTMLVideoElement | null;

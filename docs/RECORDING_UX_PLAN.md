@@ -4,7 +4,7 @@
 
 The default camera treatment is **Full view**. It preserves the source field of view and accepts black letterboxing when the camera and requested canvas have different aspect ratios. **Fill screen** remains an explicit option.
 
-For Auto rotation, compare the decoded stream dimensions with the requested orientation. If their orientations differ, rotate the source by one quarter turn before scaling. Do not use the handset screen angle as the primary camera-frame rotation: browsers may already normalize camera frames. Manual 0°, 90° and 270° overrides remain available for devices that report incorrect metadata.
+For Camera default rotation, trust only explicit camera rotation metadata. Never infer a quarter turn from reported width and height: iOS/WebKit can report landscape dimensions while already presenting upright pixels. Manual 0°, 90° and 270° corrections remain available for devices that report incorrect metadata.
 
 The preview and recorded canvas use the same fit/fill and rotation settings. A 16:9 source mapped to a 9:16 output must retain the whole source in Full view. The recorder keeps the original microphone track.
 

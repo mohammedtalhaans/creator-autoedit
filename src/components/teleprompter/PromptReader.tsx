@@ -90,6 +90,12 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
     setPlayingState(false)
   }, [setPlayingState])
 
+  const beginManualNavigation = useCallback(() => {
+    // Touching the transcript hands control to the presenter. Keep recording,
+    // but stop automatic movement so the list cannot fight the user's drag.
+    if (playing) stopScroll()
+  }, [playing, stopScroll])
+
   const tick = useCallback((timestamp: number) => {
     if (startedAtRef.current === null || !parsed.words || settings.mode === 'manual') return
     const elapsed = Math.max(0, (timestamp - startedAtRef.current) / 1000)
@@ -174,12 +180,12 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
 
   return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''} ${hideControls ? 'tp-reader-no-controls' : ''}`}>
     <div className="tp-reader-head">
-      <div className="tp-reader-meta"><span className="tp-live-dot"/><span className="mono">{modeLabel}</span><span className="tp-divider"/><span>{parsed.words.toLocaleString()} spoken words</span></div>
+      <div className="tp-reader-meta"><span className="tp-live-dot"/><span className="mono">{modeLabel}</span><span className="tp-divider"/><span className="tp-reader-word-count">{parsed.words.toLocaleString()} spoken words</span>{compact && <span className="tp-reader-gesture-hint">Scroll · tap a word</span>}</div>
       <div className="tp-reader-stats"><span className="mono">{formatDuration(timing.estimatedSeconds)}</span></div>
     </div>
     <div className="tp-reading-stage" style={readerStyle} onKeyDown={keyDown} tabIndex={0} role="region" aria-label="Teleprompter reader">
       {settings.showReadingLine !== false && <div className="tp-reading-line" aria-hidden="true"><span/></div>}
-      <div className="tp-script-scroll" ref={scrollRef}>
+      <div className="tp-script-scroll" ref={scrollRef} onPointerDown={beginManualNavigation}>
         <div className="tp-script-column">
           <div className="tp-anchor-spacer" aria-hidden="true"/>
           {parsed.blocks.map((block) => {
@@ -193,7 +199,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
                   const spokenIndex = token.spoken ? parsed.spokenTokens.findIndex((item) => item.index === token.index) : -1
                   const state = !token.spoken ? 'future' : spokenIndex < cursor ? 'past' : spokenIndex === cursor ? 'current' : 'future'
                   const activeLine = token.spoken && activeToken && token.paragraph === activeToken.paragraph && token.sentence === activeToken.sentence
-                  return <span key={token.index}><button ref={token.spoken ? registerToken(spokenIndex) : undefined} type="button" className={`${tokenClass(token, state, settings.dimSurrounding)}${activeLine ? ' tp-active-line' : ''}`} onClick={() => token.spoken && setPosition(spokenIndex, 'smooth', true)} aria-current={state === 'current' ? 'true' : undefined}>{token.text}</button>{token.spoken ? ' ' : ''}</span>
+                  return <span key={token.index}><button ref={token.spoken ? registerToken(spokenIndex) : undefined} type="button" className={`${tokenClass(token, state, settings.dimSurrounding)}${activeLine ? ' tp-active-line' : ''}`} data-spoken-index={token.spoken ? spokenIndex : undefined} aria-label={token.spoken ? `Start prompt at ${token.text}` : undefined} onClick={() => token.spoken && setPosition(spokenIndex, 'smooth', true)} aria-current={state === 'current' ? 'true' : undefined}>{token.text}</button>{token.spoken ? ' ' : ''}</span>
                 })}
               </p>}
               {firstPosition >= 0 && firstPosition === cursor && <span className="tp-block-marker" aria-hidden="true">NOW</span>}
