@@ -1,0 +1,71 @@
+name: Validate and deploy Pages preview
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Install dependencies from the reviewed lockfile
+        run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Set Pages subpath and source URL
+        run: |
+          repo="${GITHUB_REPOSITORY#*/}"
+          if [[ "$repo" == *.github.io ]]; then echo 'BASE_PATH=/' >> "$GITHUB_ENV";
+          else echo "BASE_PATH=/$repo/" >> "$GITHUB_ENV"; fi
+          echo "VITE_REPOSITORY_URL=https://github.com/$GITHUB_REPOSITORY" >> "$GITHUB_ENV"
+      - run: npm run build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: static-build-for-review
+          path: dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-lock-for-review
+          path: package-lock.json
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+        env:
+          BASE_PATH: ${{ env.BASE_PATH }}
+          REQUIRE_MEDIA_EXPORT: chromium
+      - run: npm run test:production
+        env:
+          BASE_PATH: ${{ env.BASE_PATH }}
+          REQUIRE_MEDIA_EXPORT: chromium
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: browser-test-report
+          path: playwright-report
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        id: deployment

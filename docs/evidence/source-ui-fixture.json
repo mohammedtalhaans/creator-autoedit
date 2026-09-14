@@ -1,0 +1,64 @@
+{
+  "react": "18.2.0",
+  "pcmSamples": 840704,
+  "pauses": [
+    {
+      "id": "pause-2340",
+      "start": 2.34,
+      "end": 4.12,
+      "confidence": 0.9358553780553948
+    },
+    {
+      "id": "pause-6540",
+      "start": 6.54,
+      "end": 8.86,
+      "confidence": 0.9358553780553948
+    },
+    {
+      "id": "pause-11660",
+      "start": 11.66,
+      "end": 13.4,
+      "confidence": 0.9358553780553948
+    },
+    {
+      "id": "pause-16520",
+      "start": 16.52,
+      "end": 17.514666666666667,
+      "confidence": 0.9358553780553948
+    }
+  ],
+  "keeps": [
+    {
+      "sourceStart": 0,
+      "sourceEnd": 2.53,
+      "outputStart": 0,
+      "outputEnd": 2.53
+    },
+    {
+      "sourceStart": 3.93,
+      "sourceEnd": 6.73,
+      "outputStart": 2.53,
+      "outputEnd": 5.33
+    },
+    {
+      "sourceStart": 8.67,
+      "sourceEnd": 11.85,
+      "outputStart": 5.33,
+      "outputEnd": 8.51
+    },
+    {
+      "sourceStart": 13.21,
+      "sourceEnd": 16.71,
+      "outputStart": 8.51,
+      "outputEnd": 12.009999999999998
+    },
+    {
+      "sourceStart": 17.324666666666666,
+      "sourceEnd": 17.5,
+      "outputStart": 12.009999999999998,
+      "outputEnd": 12.185333333333332
+    }
+  ],
+  "duration": 12.185333333333332,
+  "waveformPoints": 650
+}

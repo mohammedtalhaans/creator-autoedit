@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env.local
+*.tsbuildinfo
+playwright-report/
+test-results/
+public/runtime/
+.DS_Store
+
+public/notices/
+*.tsbuildinfo
+__pycache__/

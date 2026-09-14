@@ -1,0 +1,110 @@
+{
+  "scope": "Isolated source UI in Chromium with React 18.2 and substituted presentation dependencies. Not installed-production integration.",
+  "checks": [
+    {
+      "name": "AutoCut changes canonical project preset",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "An individual pause is restored",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Transcript word correction is applied",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "One-word correction preserves every original timestamp",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "punch caption preset applies to project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "editorial caption preset applies to project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "subtitle caption preset applies to project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "creator caption preset applies to project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "clean caption preset applies to project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Pop caption animation changes renderer input",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Smooth caption animation changes renderer input",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Word caption animation changes renderer input",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Blur framing changes canonical project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Fit framing changes canonical project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Fill framing changes canonical project",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Blur, Fit and Fill paint genuinely different Canvas frames",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Manual crop drag actually moves the frame",
+      "passed": true,
+      "detail": 0.46199324324324326
+    },
+    {
+      "name": "Reset returns manual crop to its starting point",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "High quality selection updates output resolution",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Cut-aware native preview skips the detected pause",
+      "passed": true,
+      "detail": 4.162453
+    },
+    {
+      "name": "Raw comparison plays the original pause without skipping",
+      "passed": true,
+      "detail": 2.628377
+    }
+  ]
+}

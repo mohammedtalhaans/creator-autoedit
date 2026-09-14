@@ -1,0 +1,350 @@
+{
+  "generatedAt": "2026-09-13T12:45:07.008Z",
+  "source": "public/demo/one-take.mp4",
+  "manifestDuration": 17.5,
+  "decodedDuration": 17.5146875,
+  "sourceSha256": "af4637812710a42a6b2215ec57950bd16413cba9916fda6ee39feec3c40afd01",
+  "augmentedSha256": "7321805c7d3a01799e452494c893594d6d80a3337ded135222ac1184eaeaa2e7",
+  "injectedGaps": [
+    {
+      "start": 2.6764791667,
+      "end": 4.1264791667,
+      "kind": "noise plateau",
+      "amplitude": 0.055
+    },
+    {
+      "start": 6.9208125,
+      "end": 8.8208125,
+      "kind": "440 Hz tone",
+      "amplitude": 0.07
+    },
+    {
+      "start": 12.0557708333,
+      "end": 13.4057708333,
+      "kind": "deterministic clicks",
+      "amplitude": 0.34
+    },
+    {
+      "start": 16.8607916667,
+      "end": 17.5,
+      "kind": "noise plateau",
+      "amplitude": 0.04
+    }
+  ],
+  "model": {
+    "id": "onnx-community/silero-vad",
+    "revision": "e71cae966052b992a7eca6b17738916ce0eca4ec",
+    "contextualInputSamples": 576,
+    "frameClockSamples": 512,
+    "contextSamples": 64
+  },
+  "newPolicy": {
+    "enter": 0.5,
+    "exit": 0.35,
+    "minSpeechFrames": 3,
+    "minSilenceFrames": 2,
+    "speechSegments": [
+      {
+        "start": 0.352,
+        "end": 2.4,
+        "confidence": 0.9848910965598546
+      },
+      {
+        "start": 4.128,
+        "end": 5.568,
+        "confidence": 0.9494283260443273
+      },
+      {
+        "start": 5.632,
+        "end": 6.624,
+        "confidence": 0.9511277261502098
+      },
+      {
+        "start": 8.928,
+        "end": 10.464,
+        "confidence": 0.9716820892615196
+      },
+      {
+        "start": 10.688,
+        "end": 11.744,
+        "confidence": 0.944586598234021
+      },
+      {
+        "start": 13.408,
+        "end": 13.664,
+        "confidence": 0.9945802986621857
+      },
+      {
+        "start": 13.728,
+        "end": 14.112,
+        "confidence": 0.9157650806964972
+      },
+      {
+        "start": 14.368,
+        "end": 15.424,
+        "confidence": 0.9775013112243796
+      },
+      {
+        "start": 15.68,
+        "end": 16.608,
+        "confidence": 0.9372376750571658
+      }
+    ],
+    "scores": {
+      "min": 0.00003594160079956055,
+      "max": 0.9999812245368958,
+      "mean": 0.5483739921537629
+    }
+  },
+  "legacyPolicy": {
+    "enter": 0.3,
+    "exit": 0.08,
+    "minSpeechFrames": 1,
+    "minSilenceFrames": 2,
+    "speechSegments": [
+      {
+        "start": 0.032,
+        "end": 0.096,
+        "confidence": 0.2
+      },
+      {
+        "start": 0.352,
+        "end": 2.592,
+        "confidence": 0.9073245987203551
+      },
+      {
+        "start": 4.128,
+        "end": 6.816,
+        "confidence": 0.8736366031857257
+      },
+      {
+        "start": 8.928,
+        "end": 10.624,
+        "confidence": 0.8984750888942205
+      },
+      {
+        "start": 10.72,
+        "end": 11.936,
+        "confidence": 0.874827969026511
+      },
+      {
+        "start": 13.44,
+        "end": 14.304,
+        "confidence": 0.8109767534402642
+      },
+      {
+        "start": 14.4,
+        "end": 16.864,
+        "confidence": 0.8647392515507477
+      }
+    ]
+  },
+  "noiseFalsePositiveSeconds": {
+    "new": 0,
+    "legacy": 0.003208333300001698
+  },
+  "removedNoisyIntervals": {
+    "new": [
+      {
+        "start": 2.6764791667,
+        "end": 4.1264791667,
+        "kind": "noise plateau",
+        "amplitude": 0.055,
+        "removed": [
+          {
+            "start": 2.6764791667,
+            "end": 4.118
+          }
+        ],
+        "originalRmsDb": -58.46062720795318
+      },
+      {
+        "start": 6.9208125,
+        "end": 8.8208125,
+        "kind": "440 Hz tone",
+        "amplitude": 0.07,
+        "removed": [
+          {
+            "start": 6.9208125,
+            "end": 8.8208125
+          }
+        ],
+        "originalRmsDb": -58.40388579414589
+      },
+      {
+        "start": 12.0557708333,
+        "end": 13.4057708333,
+        "kind": "deterministic clicks",
+        "amplitude": 0.34,
+        "removed": [
+          {
+            "start": 12.0557708333,
+            "end": 13.398
+          }
+        ],
+        "originalRmsDb": -58.816147916827305
+      },
+      {
+        "start": 16.8607916667,
+        "end": 17.5,
+        "kind": "noise plateau",
+        "amplitude": 0.04,
+        "removed": [
+          {
+            "start": 16.8607916667,
+            "end": 17.5
+          }
+        ],
+        "originalRmsDb": -58.88984560367575
+      }
+    ],
+    "legacy": [
+      {
+        "start": 2.6764791667,
+        "end": 4.1264791667,
+        "kind": "noise plateau",
+        "amplitude": 0.055,
+        "removed": [
+          {
+            "start": 2.6764791667,
+            "end": 4.118
+          }
+        ]
+      },
+      {
+        "start": 6.9208125,
+        "end": 8.8208125,
+        "kind": "440 Hz tone",
+        "amplitude": 0.07,
+        "removed": [
+          {
+            "start": 6.9208125,
+            "end": 8.8208125
+          }
+        ]
+      },
+      {
+        "start": 12.0557708333,
+        "end": 13.4057708333,
+        "kind": "deterministic clicks",
+        "amplitude": 0.34,
+        "removed": [
+          {
+            "start": 12.0557708333,
+            "end": 13.4057708333
+          }
+        ]
+      },
+      {
+        "start": 16.8607916667,
+        "end": 17.5,
+        "kind": "noise plateau",
+        "amplitude": 0.04,
+        "removed": [
+          {
+            "start": 16.874000000000002,
+            "end": 17.5
+          }
+        ]
+      }
+    ]
+  },
+  "caveat": "The phrase-window figure is a broad timing proxy because manifest phrase ends include eSpeak tail silence. The RMS speech proxy is also not a transcript or perceptual recall test; this single synthetic-noise fixture cannot establish universal speech/noise accuracy.",
+  "phraseWindowRetention": {
+    "label": "VAD overlap with broad manifest phrase windows; phrase ends include synthetic eSpeak tail silence",
+    "expectedPhraseWindowSeconds": 11.810791666666665,
+    "newVADSecondsWithinPhraseWindows": 9.695999999999998
+  },
+  "speechEnergyProxy": {
+    "label": "20 ms RMS proxy inside manifest phrase windows, thresholded against measured outside-phrase noise floor; not transcript recall",
+    "noiseFloorDb": -58.990063827510824,
+    "thresholdDb": -50.990063827510824,
+    "phraseLevelDb": -21.153826894242805,
+    "totalVoicedProxySeconds": 8.899999999999846,
+    "retainedVoicedProxySeconds": 8.739999999999997,
+    "retainedVoicedProxyPercent": 98.2022471910129,
+    "removedVoicedProxySeconds": 0.15999999999984915,
+    "removedPhraseIntervals": [
+      {
+        "start": 2.4099999999999997,
+        "end": 2.6764791666666667,
+        "duration": 0.26647916666666704,
+        "rmsDb": -58.22735721179743,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 5.577999999999999,
+        "end": 5.622,
+        "duration": 0.04400000000000048,
+        "rmsDb": -58.0999886762729,
+        "voicedProxySeconds": 0.0019999999999997797,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 6.6339999999999995,
+        "end": 6.920812499999999,
+        "duration": 0.2868124999999999,
+        "rmsDb": -58.518790194249455,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 8.820812499999999,
+        "end": 8.918000000000001,
+        "duration": 0.0971875000000022,
+        "rmsDb": -37.45707541209071,
+        "voicedProxySeconds": 0.058000000000001606,
+        "classification": "voiced-proxy"
+      },
+      {
+        "start": 10.474,
+        "end": 10.678,
+        "duration": 0.20400000000000063,
+        "rmsDb": -58.747574945915005,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 11.754,
+        "end": 12.055770833333332,
+        "duration": 0.30177083333333243,
+        "rmsDb": -58.807967618688515,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 13.674,
+        "end": 13.718,
+        "duration": 0.04400000000000048,
+        "rmsDb": -51.807842923399114,
+        "voicedProxySeconds": 0.02400000000000091,
+        "classification": "voiced-proxy"
+      },
+      {
+        "start": 14.122,
+        "end": 14.358,
+        "duration": 0.23600000000000065,
+        "rmsDb": -59.07537165712774,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 15.434,
+        "end": 15.67,
+        "duration": 0.23600000000000065,
+        "rmsDb": -58.700827389508916,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      },
+      {
+        "start": 16.618000000000002,
+        "end": 16.860791666666664,
+        "duration": 0.24279166666666185,
+        "rmsDb": -59.09615622090713,
+        "voicedProxySeconds": 0,
+        "classification": "quiet-proxy"
+      }
+    ]
+  }
+}

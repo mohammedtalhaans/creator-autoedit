@@ -1,0 +1,54 @@
+{
+  "status": "unverified-release-candidate",
+  "releaseCommit": "",
+  "checks": {
+    "dependency_install_and_lock": {
+      "passed": false,
+      "evidence": ""
+    },
+    "lint_typecheck_unit_build": {
+      "passed": false,
+      "evidence": ""
+    },
+    "chromium_real_export": {
+      "passed": false,
+      "evidence": ""
+    },
+    "webkit_real_export": {
+      "passed": false,
+      "evidence": ""
+    },
+    "iphone_safari_acceptance": {
+      "passed": false,
+      "evidence": ""
+    },
+    "android_chrome_acceptance": {
+      "passed": false,
+      "evidence": ""
+    },
+    "desktop_safari_acceptance": {
+      "passed": false,
+      "evidence": ""
+    },
+    "phone_memory_and_thermal": {
+      "passed": false,
+      "evidence": ""
+    },
+    "privacy_network_audit": {
+      "passed": false,
+      "evidence": ""
+    },
+    "model_runtime_and_license_audit": {
+      "passed": false,
+      "evidence": ""
+    },
+    "github_pages_subpath_smoke": {
+      "passed": false,
+      "evidence": ""
+    },
+    "real_talking_head_demo": {
+      "passed": false,
+      "evidence": ""
+    }
+  }
+}

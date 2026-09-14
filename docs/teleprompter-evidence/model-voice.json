@@ -1,0 +1,81 @@
+{
+  "model": "onnx-community/moonshine-tiny-ONNX",
+  "revision": "a6da1241cd305dcd64eab1edbd615f2bb9aabb95",
+  "runtime": "Transformers.js 3.7.2 via Silero VAD + AudioWorklet + Moonshine worker",
+  "route": "AudioBufferSourceNode -> AudioContext.createMediaStreamDestination -> LocalVoiceController.start(stream); no speakers",
+  "elapsedMs": 58763,
+  "statuses": [
+    {
+      "status": "preparing",
+      "detail": "Downloading and warming local voice-follow model…"
+    },
+    {
+      "status": "ready"
+    },
+    {
+      "status": "listening"
+    },
+    {
+      "status": "paused"
+    },
+    {
+      "status": "listening"
+    },
+    {
+      "status": "idle"
+    },
+    {
+      "status": "preparing",
+      "detail": "Downloading and warming local voice-follow model…"
+    },
+    {
+      "status": "ready"
+    },
+    {
+      "status": "listening"
+    },
+    {
+      "status": "idle"
+    },
+    {
+      "status": "idle"
+    }
+  ],
+  "transcripts": [
+    {
+      "text": "Your best ideas be learned to be heard.",
+      "isFinal": true,
+      "epoch": 1
+    },
+    {
+      "text": "That's Mary Dunder and Lawn, artwork.",
+      "isFinal": true,
+      "epoch": 1
+    }
+  ],
+  "recognizedText": "Your best ideas be learned to be heard. That's Mary Dunder and Lawn, artwork.",
+  "matches": [
+    {
+      "text": "Your best ideas be learned to be heard.",
+      "start": 0,
+      "end": 6,
+      "score": 0.8571428571428572,
+      "epoch": 1
+    },
+    {
+      "text": "That's Mary Dunder and Lawn, artwork.",
+      "start": 0,
+      "end": 6,
+      "score": 0.8571428571428572,
+      "epoch": 1
+    }
+  ],
+  "cursorBefore": 0,
+  "cursorAfterRealSpeech": 6,
+  "manualJumpCursor": 4,
+  "staleCursor": 4,
+  "staleIgnored": 1,
+  "paused": true,
+  "resumed": true,
+  "restarted": true
+}

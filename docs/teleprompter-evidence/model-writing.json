@@ -1,0 +1,12 @@
+{
+  "model": "onnx-community/SmolLM2-135M-Instruct-ONNX",
+  "revision": "b8a5c0f183b78c55955a5364f610c36668b5e681",
+  "runtime": "Transformers.js 3.7.2 via prompt-ai.worker.ts",
+  "elapsedMs": 74653,
+  "source": "Write a short opening about recording a clear tutorial.",
+  "draft": "\"As a seasoned educator, I've seen firsthand the power of clear and concise language in the classroom. I've been teaching for over a decade, and I've had the privilege of creating a few standout lessons that have been met with both praise and criticism. I've written a few short, clear, and concise tutorials that have been well-received by both students and teachers.\n\nI've been experimenting with different approaches to the lesson, from the most straightforward to the",
+  "rewrite": "Here's a rewritten version that sounds even more natural and concise:\n\n\"As a seasoned educator, I've seen firsthand the impact of clear and concise language in the classroom. I've written a few short, clear, and concise tutorials that have been well-received by both students and teachers. I've also experimented with different approaches to the lesson, from the most straightforward to the most engaging.\n\nI've written a few more, but I've tried to make it",
+  "structuredResultValid": true,
+  "applied": false,
+  "cancelled": true
+}

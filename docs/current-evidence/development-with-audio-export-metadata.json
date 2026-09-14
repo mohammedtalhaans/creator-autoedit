@@ -1,0 +1,17 @@
+{
+  "size": 324444,
+  "duration": 4.608,
+  "width": 720,
+  "height": 1280,
+  "videoCodec": "avc",
+  "audioCodec": "aac",
+  "frames": 138,
+  "samples": 216,
+  "videoEnd": 4.6,
+  "audioEnd": 4.6080000000000005,
+  "checked": 4,
+  "nonBlack": 4,
+  "captionPixels": 19,
+  "url": "blob:http://127.0.0.1:4173/d0731df3-61e2-4a3d-a829-27732a0eb8ad",
+  "expectedDuration": 4.6
+}

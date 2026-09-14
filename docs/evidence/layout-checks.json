@@ -1,0 +1,184 @@
+{
+  "scope": "Isolated source composition in Chromium. Missing Motion, Radix, icons and utility libraries substituted. React 18.2; production declares React 19.2. Not a production build.",
+  "screenshots": [
+    {
+      "screenshot": "01-landing-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1123,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "02-ingest-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "03-analysis-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "04-cut-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "05-captions-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "06-caption-customization.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "07-audio-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "08-audio-settings.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "09-frame-desktop.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "10-frame-safe-zones.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "11-source-metadata.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "12-export-settings.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "15-about-privacy.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "16-error-recovery.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1103,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "13-export-progress-state.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "14-completion-state.png",
+      "viewportWidth": 1440,
+      "scrollWidth": 1440,
+      "scrollHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "17-landing-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 1696,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "18-editor-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "19-cut-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "20-captions-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "21-audio-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "22-frame-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "23-export-settings-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 941,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "24-analysis-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 1235,
+      "horizontalOverflow": false
+    },
+    {
+      "screenshot": "25-export-state-mobile.png",
+      "viewportWidth": 390,
+      "scrollWidth": 390,
+      "scrollHeight": 1029,
+      "horizontalOverflow": false
+    }
+  ],
+  "javascriptErrors": [],
+  "transcript": "Explicit fixture timings, not Whisper inference",
+  "processingStates": "Explicit state fixtures. Completion uses a native test-tooling render, not application export.",
+  "actualNativePreviewChecks": "source-ui-checks.json"
+}

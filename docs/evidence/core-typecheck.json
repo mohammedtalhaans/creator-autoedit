@@ -1,0 +1,23 @@
+{
+  "observedAt": "2026-09-12T05:23:06.481Z",
+  "compiler": "5.8.3",
+  "scope": [
+    "features/edit-map/index.ts",
+    "features/silence/index.ts",
+    "features/captions/index.ts",
+    "features/framing/index.ts",
+    "features/audio-enhance/dsp.ts",
+    "features/renderer/index.ts",
+    "features/exporter/paged-target.ts",
+    "workers/network-guard.ts",
+    "features/media/audio-timeline.ts",
+    "lib/errors.ts",
+    "lib/jobs.ts",
+    "features/transcription/model.ts",
+    "app/result-guards.ts",
+    "features/exporter/integrity.ts"
+  ],
+  "diagnostics": [],
+  "thirdPartyModulesChecked": false,
+  "fullProjectTypecheck": false
+}

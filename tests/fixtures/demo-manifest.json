@@ -1,0 +1,32 @@
+{
+  "kind": "original illustration with synthetic speech",
+  "duration": 17.5,
+  "width": 640,
+  "height": 360,
+  "fps": 24,
+  "phrases": [
+    {
+      "text": "Your best ideas deserve to be heard.",
+      "start": 0.35,
+      "end": 2.6764791666666667
+    },
+    {
+      "text": "Not buried under a long, awkward pause.",
+      "start": 4.126479166666666,
+      "end": 6.920812499999999
+    },
+    {
+      "text": "Keep the words that matter. Make a little room.",
+      "start": 8.820812499999999,
+      "end": 12.055770833333332
+    },
+    {
+      "text": "One take. A clearer voice. Ready to share.",
+      "start": 13.405770833333332,
+      "end": 16.860791666666664
+    }
+  ],
+  "license": "MIT (original project artwork and text)",
+  "generator": "scripts/generate-fixtures.py",
+  "not_phone_qa": true
+}

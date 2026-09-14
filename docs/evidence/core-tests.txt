@@ -1,0 +1,171 @@
+
+> creator-autoedit@0.9.0-rc.2 test:core:offline
+> node scripts/test-core-offline.cjs
+
+
+Background result ownership
+
+audio sample clock and voice processing
+
+caption timing and correction
+
+canonical edit decision map
+
+Export integrity contract
+
+bounded random-access MP4 target
+
+Tactile manual framing
+
+framing geometry
+
+timestamped streaming audio resampling
+
+shared deterministic caption layout
+
+speech-aware pause detection
+
+Optional local model cache
+
+Actionable error handling
+
+Cancellable worker ownership
+
+face-worker asset-only network policy
+ PASS uses the detected trajectory when the requested frame is still current
+ PASS does not overwrite a manual crop with a late face result
+ PASS does not overwrite Blur with a late face failure
+ PASS only uses automatic center fallback when the frame has not changed
+ PASS rejects outdated noise-reduction results
+ PASS resets old progress and transfer sizes on retry
+ PASS retains measured progress within the same operation
+ PASS preserves resampled duration
+ PASS preserves DC gain during resampling
+ PASS enhancement measurably changes audio but not length
+ PASS does not amplify digital silence
+ PASS normalizes invalid audio safely
+ PASS never loses a block straddling a cut
+ PASS maps 80 asynchronous audio boundaries within half a sample
+ PASS produces a valid PCM WAV header
+ PASS reports actual amplitude
+ PASS crossfades opposite source levels without a discontinuity
+ PASS audio crossfades are identical across arbitrary block boundaries
+ PASS limits short-form phrases to four words
+ PASS respects punctuation and speech pauses
+ PASS preserves exact timing for same-length edits
+ PASS interpolates phrase replacements across their original interval
+ PASS supports deleting a caption phrase
+ PASS handles missing timestamps without losing source offsets
+ PASS remaps captions via the EDL
+ PASS keeps text inside safe regions
+ PASS empty input never generates invented captions
+ PASS preserves an uncut project
+ PASS removes one pause
+ PASS merges overlapping and adjacent cuts
+ PASS handles start and end cuts
+ PASS a seam belongs to the next range
+ PASS clamps invalid ranges and ignores disabled cuts
+ PASS maps removed source time to a stable seam
+ PASS does not invent words entirely inside removed pauses
+ PASS trims words crossing either edge of a cut
+ PASS handles no kept media without NaN
+ PASS normalizes unordered keep ranges
+ PASS has monotonic frame timestamps and no accumulated per-cut drift
+ PASS inverts 4,000 kept source times across many edits
+ PASS rejects invalid durations
+ PASS accepts H.264/AAC with normal encoder priming
+ PASS accepts intentional video-only output
+ PASS rejects a missing video track
+ PASS rejects missing audio rather than silently saving a muted export
+ PASS rejects audio accidentally added to a silent source
+ PASS rejects an incompatible codec
+ PASS rejects incorrect dimensions
+ PASS rejects truncated exports
+ PASS rejects invalid duration
+ PASS rejects a delayed audio start
+ PASS rejects a truncated audio track even when container duration is correct
+ PASS rejects audio/video end-time drift
+ PASS rejects a zero-byte file
+ PASS writes across page boundaries
+ PASS rewrites MP4 header bytes without appending duplicates
+ PASS fills unwritten sparse ranges with zero
+ PASS rejects memory budget overruns before allocation
+ PASS rejects invalid positions and configurations
+ PASS releases all pages and reports the actual length
+ PASS moves exactly one source crop fraction for a landscape drag
+ PASS accounts for zoom instead of using a magic drag multiplier
+ PASS does not allow panning an uncropped portrait out of its frame
+ PASS hands off automatic tracking at the visible subject position
+ PASS clamps to visible crop bounds without hidden over-drag
+ PASS fails safely while the preview has no layout size
+ PASS produces exact social dimensions
+ PASS never samples outside source bounds
+ PASS actual face position changes horizontal crop
+ PASS holds framing through missed detections
+ PASS bounds trajectory velocity
+ PASS interpolates source-time positions
+ PASS keeps original output dimensions even
+ PASS 16000 Hz is packetization-independent with 127-frame packets
+ PASS 16000 Hz is packetization-independent with 480-frame packets
+ PASS 16000 Hz is packetization-independent with 1024-frame packets
+ PASS 22050 Hz is packetization-independent with 127-frame packets
+ PASS 22050 Hz is packetization-independent with 480-frame packets
+ PASS 22050 Hz is packetization-independent with 1024-frame packets
+ PASS 44100 Hz is packetization-independent with 127-frame packets
+ PASS 44100 Hz is packetization-independent with 480-frame packets
+ PASS 44100 Hz is packetization-independent with 1024-frame packets
+ PASS 48000 Hz is packetization-independent with 127-frame packets
+ PASS 48000 Hz is packetization-independent with 480-frame packets
+ PASS 48000 Hz is packetization-independent with 1024-frame packets
+ PASS 96000 Hz is packetization-independent with 127-frame packets
+ PASS 96000 Hz is packetization-independent with 480-frame packets
+ PASS 96000 Hz is packetization-independent with 1024-frame packets
+ PASS copies aligned 48 kHz samples without colouring them
+ PASS negative priming timestamps are trimmed rather than delaying speech
+ PASS a delayed audio track has real silence before it starts
+ PASS preserves timestamp gaps instead of concatenating them away
+ PASS codec microsecond timestamp quantization does not accumulate drift
+ PASS non-finite decoded values never enter the output
+ PASS rejects invalid durations and sample rates without allocating huge buffers
+ PASS does not accept packets after finalization
+ PASS wraps at word boundaries and stays inside the safe width
+ PASS long corrected words never exceed the frame
+ PASS measurement and drawing retain the same font size
+ PASS respects short landscape safe-area height
+ PASS uppercase changes text, not word timing
+ PASS finds long dead air without cutting a breath
+ PASS preserves quiet speech
+ PASS never removes the whole clip on silence
+ PASS does not mistake constant room noise for speech
+ PASS produces bounded overview data
+ PASS Natural preserves more room than Tight
+ PASS Off and restored pauses remain kept
+ PASS handles tiny inputs and invalid samples
+ PASS uses an immutable full model revision
+ PASS treats an unreadable cache as a miss
+ PASS does not fail inference on quota exhaustion
+ PASS retains a successful model response
+ PASS preserves string explanations rather than replacing them with generic copy
+ PASS preserves ordinary Error messages
+ PASS supports cross-realm serialized errors
+ PASS gives safe fallback copy for missing or empty reasons
+ PASS recognizes cancellation across worker realms
+ PASS aborts the previous operation with the same name
+ PASS cannot finish a newer operation with an older signal
+ PASS cancels all independent jobs
+ PASS terminates exactly once on success and detaches callbacks
+ PASS does not post data to an already cancelled worker
+ PASS terminates actual work when cancellation arrives later
+ PASS propagates worker errors without leaking handlers
+ PASS handles data-clone failures on send
+ PASS handles data-clone failures on receive
+ PASS fails safely on malformed responses instead of hanging
+ PASS reports only finite bounded measured progress
+ PASS allows only the exact public model
+ PASS allows known local runtime filenames under the repository base
+ PASS blocks POST even to an otherwise allowed model
+ PASS blocks telemetry hosts and same-origin collection paths
+ PASS blocks directory traversal and runtime query payloads
+ PASS rejects lookalike origins and credential-bearing URLs
+
+135 passed; 0 failed. Native assertion runner, not Vitest.

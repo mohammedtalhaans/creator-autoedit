@@ -1,0 +1,6 @@
+public/runtime
+public/notices
+node_modules
+dist
+playwright-report
+test-results

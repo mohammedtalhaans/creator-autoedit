@@ -1,0 +1,77 @@
+{
+  "words": [
+    {
+      "id": "w-0",
+      "text": "your",
+      "start": 0,
+      "end": 0.62
+    },
+    {
+      "id": "w-1",
+      "text": "best",
+      "start": 0.62,
+      "end": 0.9
+    },
+    {
+      "id": "w-2",
+      "text": "ideas",
+      "start": 0.9,
+      "end": 1.34
+    },
+    {
+      "id": "w-3",
+      "text": "deserve",
+      "start": 1.34,
+      "end": 1.76
+    },
+    {
+      "id": "w-4",
+      "text": "to",
+      "start": 1.76,
+      "end": 1.92
+    },
+    {
+      "id": "w-5",
+      "text": "be",
+      "start": 1.92,
+      "end": 2.1
+    },
+    {
+      "id": "w-6",
+      "text": "heard.",
+      "start": 2.1,
+      "end": 3.3
+    },
+    {
+      "id": "w-7",
+      "text": "Not",
+      "start": 3.96,
+      "end": 4.44
+    },
+    {
+      "id": "w-8",
+      "text": "very",
+      "start": 4.44,
+      "end": 4.76
+    },
+    {
+      "id": "w-9",
+      "text": "under",
+      "start": 4.76,
+      "end": 5.02
+    },
+    {
+      "id": "w-10",
+      "text": "alarm,",
+      "start": 5.02,
+      "end": 5.66
+    },
+    {
+      "id": "w-11",
+      "text": "awkward.",
+      "start": 5.9,
+      "end": 6
+    }
+  ],
+  "accelerated": false
+}

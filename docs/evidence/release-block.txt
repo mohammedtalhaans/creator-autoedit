@@ -1,0 +1,20 @@
+
+> creator-autoedit@0.9.0-rc.2 verify:release
+> node scripts/release-check.mjs
+
+RELEASE BLOCKED
+
+ - dependency_install_and_lock: no verification evidence recorded
+ - lint_typecheck_unit_build: no verification evidence recorded
+ - chromium_real_export: no verification evidence recorded
+ - webkit_real_export: no verification evidence recorded
+ - iphone_safari_acceptance: no verification evidence recorded
+ - android_chrome_acceptance: no verification evidence recorded
+ - desktop_safari_acceptance: no verification evidence recorded
+ - phone_memory_and_thermal: no verification evidence recorded
+ - privacy_network_audit: no verification evidence recorded
+ - model_runtime_and_license_audit: no verification evidence recorded
+ - github_pages_subpath_smoke: no verification evidence recorded
+ - real_talking_head_demo: no verification evidence recorded
+ - A reviewed, committed package-lock.json is required.
+ - Record the exact release commit.

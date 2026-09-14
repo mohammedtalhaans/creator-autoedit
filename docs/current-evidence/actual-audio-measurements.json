@@ -1,0 +1,11 @@
+{
+  "rmsDb": -21.7015570908489,
+  "peakDb": -1.6956518559873388,
+  "gainDb": 8,
+  "denoised": true,
+  "difference": 0.028392614628024105,
+  "peak": 0.8226543664932251,
+  "finite": true,
+  "length": 288000,
+  "originalLength": 288000
+}
