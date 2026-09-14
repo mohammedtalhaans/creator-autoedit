@@ -19,6 +19,7 @@ export const defaultPromptSettings: PromptSettings = {
   marginRight: 7,
   horizontalPosition: 0.5,
   windowHeight: 34,
+  verticalPosition: 18,
   textAlign: 'left',
   showPrompt: true,
   showReadingLine: true,
@@ -26,6 +27,10 @@ export const defaultPromptSettings: PromptSettings = {
   textColor: '#ffffff',
   backgroundColor: '#000000',
   backgroundOpacity: 0.38,
+  showBackground: true,
+  backgroundBlur: 0,
+  textShadow: true,
+  textOutline: false,
   mirror: false,
   highContrast: true,
   dimSurrounding: true,
@@ -47,6 +52,9 @@ export const defaultCaptureSettings: CaptureSettings = {
   fps: 30,
   portrait: true,
   monitorAudio: false,
+  screenLight: true,
+  screenLightIntensity: 0.72,
+  screenLightTone: 'neutral',
   framingMode: 'fill',
   framingVersion: 2,
   rotation: 'auto',
@@ -54,8 +62,10 @@ export const defaultCaptureSettings: CaptureSettings = {
 };
 
 export function clonePromptSettings(settings: PromptSettings = defaultPromptSettings): PromptSettings {
-  const cloned = structuredClone(settings) as PromptSettings & { windowHeight?: unknown; textAlign?: unknown; showPrompt?: unknown; showReadingLine?: unknown };
+  const cloned = structuredClone(settings) as PromptSettings & { windowHeight?: unknown; verticalPosition?: unknown; textAlign?: unknown; showPrompt?: unknown; showReadingLine?: unknown; showBackground?: unknown; backgroundBlur?: unknown; textShadow?: unknown; textOutline?: unknown };
   const rawWindowHeight = typeof cloned.windowHeight === 'number' && Number.isFinite(cloned.windowHeight) ? cloned.windowHeight : defaultPromptSettings.windowHeight;
+  const rawVerticalPosition = typeof cloned.verticalPosition === 'number' && Number.isFinite(cloned.verticalPosition) ? cloned.verticalPosition : defaultPromptSettings.verticalPosition;
+  const rawBackgroundBlur = typeof cloned.backgroundBlur === 'number' && Number.isFinite(cloned.backgroundBlur) ? cloned.backgroundBlur : defaultPromptSettings.backgroundBlur;
   const isLegacyDefault = cloned.fontSize === 48
     && cloned.lineHeight === 1.35
     && cloned.columnWidth === 78
@@ -94,9 +104,14 @@ export function clonePromptSettings(settings: PromptSettings = defaultPromptSett
       backgroundColor: defaultPromptSettings.backgroundColor,
     } : {}),
     windowHeight: isLegacyDefault ? defaultPromptSettings.windowHeight : Math.max(20, Math.min(65, rawWindowHeight)),
+    verticalPosition: Math.max(8, Math.min(58, rawVerticalPosition)),
     textAlign: isLegacyDefault ? defaultPromptSettings.textAlign : cloned.textAlign === 'center' ? 'center' : 'left',
     showPrompt: typeof cloned.showPrompt === 'boolean' ? cloned.showPrompt : defaultPromptSettings.showPrompt,
     showReadingLine: isLegacyDefault ? defaultPromptSettings.showReadingLine : typeof cloned.showReadingLine === 'boolean' ? cloned.showReadingLine : defaultPromptSettings.showReadingLine,
+    showBackground: typeof cloned.showBackground === 'boolean' ? cloned.showBackground : defaultPromptSettings.showBackground,
+    backgroundBlur: Math.max(0, Math.min(24, rawBackgroundBlur)),
+    textShadow: typeof cloned.textShadow === 'boolean' ? cloned.textShadow : defaultPromptSettings.textShadow,
+    textOutline: typeof cloned.textOutline === 'boolean' ? cloned.textOutline : defaultPromptSettings.textOutline,
   };
 }
 
@@ -118,12 +133,19 @@ export function cloneCaptureSettings(settings: CaptureSettings = defaultCaptureS
     ? capture.framingMode === 'fit' ? 'fit' : 'fill'
     : 'fill';
   const rotation = capture.rotation === 0 || capture.rotation === 90 || capture.rotation === 270 ? capture.rotation : 'auto';
+  const screenLightIntensity = typeof capture.screenLightIntensity === 'number' && Number.isFinite(capture.screenLightIntensity)
+    ? Math.max(0.2, Math.min(1, capture.screenLightIntensity))
+    : defaultCaptureSettings.screenLightIntensity;
+  const screenLightTone = capture.screenLightTone === 'cool' || capture.screenLightTone === 'warm' ? capture.screenLightTone : 'neutral';
   return {
     ...defaultCaptureSettings,
     ...capture,
     framingMode,
     framingVersion: 2,
     rotation,
+    screenLight: typeof capture.screenLight === 'boolean' ? capture.screenLight : defaultCaptureSettings.screenLight,
+    screenLightIntensity,
+    screenLightTone,
     controls: { ...defaultCaptureSettings.controls, ...(capture.controls ?? {}) },
   };
 }

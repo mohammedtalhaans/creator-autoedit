@@ -47,6 +47,9 @@ describe('capture orientation negotiation', () => {
     delete legacyFullView.framingVersion;
     expect(cloneCaptureSettings(legacyFullView).framingMode).toBe('fill');
     expect(cloneCaptureSettings({ ...defaultCaptureSettings, framingMode: 'fit' }).framingMode).toBe('fit');
+    expect(defaultCaptureSettings.screenLight).toBe(true);
+    expect(cloneCaptureSettings({ ...defaultCaptureSettings, screenLightIntensity: 4 }).screenLightIntensity).toBe(1);
+    expect(cloneCaptureSettings({ ...defaultCaptureSettings, screenLightIntensity: 0 }).screenLightIntensity).toBe(.2);
   });
 
   it('persists negotiated source dimensions and orientation metadata', () => {
@@ -85,6 +88,10 @@ describe('capture orientation negotiation', () => {
     expect(custom.backgroundOpacity).toBe(0.92);
     expect(clonePromptSettings({ ...defaultPromptSettings, windowHeight: 99 }).windowHeight).toBe(65);
     expect(clonePromptSettings({ ...defaultPromptSettings, windowHeight: 1 }).windowHeight).toBe(20);
+    expect(clonePromptSettings({ ...defaultPromptSettings, verticalPosition: 99 }).verticalPosition).toBe(58);
+    expect(clonePromptSettings({ ...defaultPromptSettings, verticalPosition: 1 }).verticalPosition).toBe(8);
+    expect(clonePromptSettings({ ...defaultPromptSettings, backgroundBlur: 99 }).backgroundBlur).toBe(24);
+    expect(clonePromptSettings({ ...defaultPromptSettings, showBackground: false }).showBackground).toBe(false);
   });
 
   it('keeps the full landscape source inside a portrait canvas when Full view is selected', () => {

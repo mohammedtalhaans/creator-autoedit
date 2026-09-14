@@ -6,8 +6,9 @@ export interface PromptSettings {
   /** Optional independent gutters/offset for camera-specific reading setups. */
   marginLeft?: number; marginRight?: number; horizontalPosition?: number;
   /** Compact prompt-window and alignment controls used by the recording overlay. */
-  windowHeight: number; textAlign: 'left' | 'center'; showPrompt: boolean; showReadingLine: boolean;
+  windowHeight: number; verticalPosition: number; textAlign: 'left' | 'center'; showPrompt: boolean; showReadingLine: boolean;
   backgroundColor: string; backgroundOpacity: number; mirror: boolean;
+  showBackground: boolean; backgroundBlur: number; textShadow: boolean; textOutline: boolean;
   highContrast: boolean; dimSurrounding: boolean; autoPause: boolean;
   lineTiming: boolean; voiceSensitivity: number; punctuation: boolean;
   commaPause: number; periodPause: number; paragraphPause: number;
@@ -21,6 +22,8 @@ export interface CaptureSettings {
   resolution: 720 | 1080 | 2160; fps: 24 | 25 | 30 | 50 | 60;
   /** Whether the requested/displayed recording orientation is vertical. */
   portrait: boolean; monitorAudio: boolean;
+  /** Screen-powered selfie light; UI-only and never composited into video. */
+  screenLight: boolean; screenLightIntensity: number; screenLightTone: 'cool' | 'neutral' | 'warm';
   /** Fill is the phone-first default; fit remains available when the full sensor view matters. */
   framingMode: 'fit' | 'fill';
   /** Allows stored pre-portrait-default settings to be migrated once. */

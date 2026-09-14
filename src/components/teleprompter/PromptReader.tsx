@@ -153,7 +153,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
   const wordsSpoken = parsed.spokenTokens.slice(0, cursor).length
   const modeLabel = settings.mode === 'timed' ? 'TIMED PROMPT' : settings.mode === 'manual' ? 'MANUAL PROMPT' : 'FIXED PROMPT'
   const playLabel = playing ? 'Pause prompt' : settings.mode === 'manual' ? 'Start manual read' : 'Play prompt'
-  const backgroundColor = promptBackground(settings.backgroundColor, settings.backgroundOpacity)
+  const backgroundColor = settings.showBackground === false ? 'transparent' : promptBackground(settings.backgroundColor, settings.backgroundOpacity)
   const readerStyle: CSSProperties = {
     '--tp-text': settings.textColor,
     '--tp-bg': settings.backgroundColor,
@@ -170,12 +170,17 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
     '--tp-reading-line': `${settings.readingLine}%`,
     '--tp-opacity': settings.dimSurrounding ? '.34' : '1',
     '--tp-window-height': `${Math.max(20, Math.min(65, settings.windowHeight ?? 34))}dvh`,
+    '--tp-window-top': `${Math.max(8, Math.min(58, settings.verticalPosition ?? 18))}dvh`,
     '--tp-align': settings.textAlign ?? 'left',
     '--tp-mirror': settings.mirror ? -1 : 1,
     backgroundColor,
     fontFamily: settings.fontFamily,
     textAlign: settings.textAlign ?? 'left',
     fontWeight: settings.bold ? 650 : 450,
+    backdropFilter: settings.showBackground === false || !settings.backgroundBlur ? undefined : `blur(${settings.backgroundBlur}px)`,
+    WebkitBackdropFilter: settings.showBackground === false || !settings.backgroundBlur ? undefined : `blur(${settings.backgroundBlur}px)`,
+    textShadow: settings.textShadow === false ? 'none' : '0 2px 8px rgba(0,0,0,.92), 0 1px 2px rgba(0,0,0,.95)',
+    WebkitTextStroke: settings.textOutline ? '1px rgba(0,0,0,.85)' : undefined,
   } as CSSProperties
 
   return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''} ${hideControls ? 'tp-reader-no-controls' : ''} ${compact && settings.showPrompt === false ? 'tp-reader-hidden' : ''}`} aria-hidden={compact && settings.showPrompt === false ? 'true' : undefined}>
@@ -225,7 +230,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
 export function PromptQuickControls({ settings, onChange }: { settings: PromptSettings; onChange: (patch: Partial<PromptSettings>) => void }) {
   return <div className="tp-quick-controls">
     <Slider label="Speed" value={settings.wpm} min={50} max={260} step={5} display={`${settings.wpm} WPM`} onChange={(wpm) => onChange({ wpm })}/>
-    <Slider label="Text size" value={settings.fontSize} min={28} max={84} step={1} display={`${settings.fontSize}px`} onChange={(fontSize) => onChange({ fontSize })}/>
+    <Slider label="Text size" value={settings.fontSize} min={20} max={112} step={1} display={`${settings.fontSize}px`} onChange={(fontSize) => onChange({ fontSize })}/>
     <Slider label="Reading line" value={settings.readingLine} min={10} max={65} step={1} display={`${settings.readingLine}%`} onChange={(readingLine) => onChange({ readingLine })}/>
     <Switch label="Bold words" checked={settings.bold} onChange={(bold) => onChange({ bold })}/>
   </div>

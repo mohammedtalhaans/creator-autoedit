@@ -71,6 +71,11 @@ test.describe('phone first Script to Record to Review flow', () => {
     await promptWords.first().scrollIntoViewIfNeeded();
     await promptWords.first().click();
     await expect(promptWords.first()).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.tp-screen-light')).toBeVisible();
+    await page.getByRole('button', { name: 'Turn screen light off', exact: true }).click();
+    await expect(page.locator('.tp-screen-light')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Turn screen light on', exact: true }).click();
+    await expect(page.locator('.tp-screen-light')).toBeVisible();
     const initialPromptSize = await page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-size'));
     await page.getByRole('button', { name: 'Make transcript larger', exact: true }).click();
     await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-size'))).not.toBe(initialPromptSize);
@@ -116,10 +121,13 @@ test.describe('phone first Script to Record to Review flow', () => {
     await page.getByRole('button', { name: 'Open prompt controls', exact: true }).click();
     const promptDialog = page.getByRole('dialog', { name: 'Prompt controls', exact: true });
     await expect(promptDialog).toBeVisible();
-    for (const label of ['Speed', 'Text size', 'Reading line', 'Prompt window', 'Column width', 'Horizontal position', 'Line height', 'Background opacity']) await expect(promptDialog.getByRole('slider', { name: label, exact: true })).toBeVisible();
+    for (const label of ['Speed', 'Text size', 'Reading line', 'Prompt window', 'Vertical position', 'Column width', 'Horizontal position', 'Line height', 'Background opacity', 'Background blur']) await expect(promptDialog.getByRole('slider', { name: label, exact: true })).toBeVisible();
     await expect(promptDialog.getByText('Text alignment', { exact: true })).toBeVisible();
     await expect(promptDialog.getByRole('switch', { name: 'Dim surrounding text', exact: true })).toBeVisible();
     await expect(promptDialog.getByRole('switch', { name: 'Show transcript', exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Show background', exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Text shadow', exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Text outline', exact: true })).toBeVisible();
     await expect(promptDialog.getByRole('switch', { name: 'Show reading line', exact: true })).toBeVisible();
     const promptGeometryBefore = await page.evaluate(() => {
       const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;
@@ -135,6 +143,15 @@ test.describe('phone first Script to Record to Review flow', () => {
     await promptDialog.getByRole('slider', { name: 'Prompt window', exact: true }).press('ArrowRight');
     await promptDialog.getByRole('slider', { name: 'Column width', exact: true }).press('ArrowRight');
     await promptDialog.getByRole('slider', { name: 'Horizontal position', exact: true }).press('ArrowRight');
+    const topBefore = await page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-window-top'));
+    await promptDialog.getByRole('button', { name: 'Middle', exact: true }).click();
+    await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-window-top'))).not.toBe(topBefore);
+    await promptDialog.getByRole('combobox', { name: 'Font', exact: true }).selectOption({ label: 'Georgia' });
+    await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => getComputedStyle(stage).fontFamily)).toContain('Georgia');
+    await promptDialog.getByRole('switch', { name: 'Show background', exact: true }).click();
+    await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => getComputedStyle(stage).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    await promptDialog.getByRole('switch', { name: 'Text outline', exact: true }).click();
+    await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => getComputedStyle(stage).webkitTextStrokeWidth)).toBe('1px');
     await expect.poll(() => page.evaluate(() => {
       const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;
       const column = document.querySelector('.tp-reader-compact .tp-script-column') as HTMLElement | null;

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Type, Video, Volume2, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Sun, Type, Video, Volume2, Zap } from 'lucide-react'
 import type { CaptureSettings, PromptSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording'
 import { drawCaptureFrame, measureDrawnFrame, previewTransform, type DrawnFrameDimensions } from '../../features/recording/capture'
 import { Alert, Badge, BottomSheet, Button, IconButton, NativeSelect, Slider, Switch } from '../ui/primitives'
@@ -81,6 +81,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
   const resolution = useMemo(() => formatResolution(settings), [settings])
   const framingMode = settings.framingMode ?? 'fill'
   const rotation = settings.rotation ?? 'auto'
+  const screenLightColor = settings.screenLightTone === 'warm' ? '255, 221, 178' : settings.screenLightTone === 'cool' ? '214, 235, 255' : '255, 255, 255'
 
   useEffect(() => {
     const video = videoRef.current
@@ -173,6 +174,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
       {snapshot.stream ? <><video ref={videoRef} muted playsInline autoPlay onLoadedMetadata={(event) => setVideoSize({ width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} className="tp-camera-video tp-preview-source" aria-label="Camera preview"/><canvas ref={canvasRef} className={`tp-camera-canvas ${settings.facingMode === 'user' ? 'is-front-mirrored' : ''}`} aria-label="Camera preview image"/></> : <div className="tp-no-camera" style={{ position: 'absolute', inset: 0, display: 'grid', placeContent: 'center', justifyItems: 'center', gap: 14, padding: 24, color: '#fff', textAlign: 'center' }}><Camera size={34}/><strong>{isOpening ? 'Opening camera…' : 'Camera preview unavailable'}</strong><span>Allow camera and microphone access to record a take.</span><Button variant="outline" onClick={onOpen} disabled={isOpening}>{isOpening ? 'Opening inputs…' : 'Open camera & mic'}</Button></div>}
     </div>
     <div className="tp-record-surface-scrim" aria-hidden="true"/>
+    {settings.screenLight && settings.facingMode === 'user' && <div className="tp-screen-light" aria-hidden="true" style={{ '--tp-screen-light-color': screenLightColor, '--tp-screen-light-strength': settings.screenLightIntensity ?? .72 } as CSSProperties}/>}
 
     <header className="tp-record-topbar">
       <IconButton className="tp-record-top-back" label="Back to script" onClick={onBack} disabled={!onBack || isSaving}><ArrowLeft size={20}/></IconButton>
@@ -183,11 +185,12 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
     </header>
 
     {reader && <div className="tp-record-reader-overlay" style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>{reader}</div>}
-    <div className="tp-record-prompt-tools" role="group" aria-label="Transcript display controls">
+    <div className="tp-record-prompt-tools" role="group" aria-label="On-screen recording controls">
+      <IconButton label={settings.screenLight ? 'Turn screen light off' : 'Turn screen light on'} onClick={() => onSettingsChange({ screenLight: !settings.screenLight })}><Sun size={18} fill={settings.screenLight ? 'currentColor' : 'none'}/></IconButton>
       <IconButton label={script.settings.showPrompt === false ? 'Show transcript' : 'Hide transcript'} onClick={() => onPromptSettingsChange({ showPrompt: script.settings.showPrompt === false })}>{script.settings.showPrompt === false ? <Eye size={18}/> : <EyeOff size={18}/>}</IconButton>
-      <IconButton label="Make transcript smaller" onClick={() => onPromptSettingsChange({ fontSize: Math.max(28, script.settings.fontSize - 4) })} disabled={script.settings.fontSize <= 28}><Minus size={17}/></IconButton>
+      <IconButton label="Make transcript smaller" onClick={() => onPromptSettingsChange({ fontSize: Math.max(20, script.settings.fontSize - 4) })} disabled={script.settings.fontSize <= 20}><Minus size={17}/></IconButton>
       <span className="mono" aria-live="polite">{script.settings.fontSize}</span>
-      <IconButton label="Make transcript larger" onClick={() => onPromptSettingsChange({ fontSize: Math.min(84, script.settings.fontSize + 4) })} disabled={script.settings.fontSize >= 84}><Plus size={17}/></IconButton>
+      <IconButton label="Make transcript larger" onClick={() => onPromptSettingsChange({ fontSize: Math.min(112, script.settings.fontSize + 4) })} disabled={script.settings.fontSize >= 112}><Plus size={17}/></IconButton>
     </div>
     <div className="tp-record-status" role="status" aria-live="polite"><span className={`tp-record-state-dot ${isRecording ? 'is-recording' : ''} ${isSaving ? 'is-saving' : ''}`} aria-hidden="true"/><span className="mono">{isRecording ? 'REC' : isSaving ? 'SAVING…' : isFailure ? 'RECOVERY' : unavailable ? 'READY TO OPEN' : 'READY'}</span>{isRecording && <span className="mono">{elapsedLabel(elapsed)}</span>}</div>
     {snapshot.error && <div className="tp-record-alert"><Alert title="Recording needs attention" variant="destructive">{snapshot.error}</Alert></div>}
@@ -227,6 +230,9 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
         </div>
         <p className="origin-field-help">Portrait fill preserves the phone camera’s full view, detects its displayed orientation, and writes an upright 9:16 recording without asking the browser to pre-crop it.</p>
         <Switch label="Monitor audio" description="Send a quiet feed to headphones." checked={settings.monitorAudio} disabled={cameraControlsDisabled} onChange={(monitorAudio) => onSettingsChange({ monitorAudio })}/>
+        <Switch label="Screen selfie light" description="Use the display border to light your face. It is never added to the video." checked={settings.screenLight} onChange={(screenLight) => onSettingsChange({ screenLight })}/>
+        <Slider label="Screen light brightness" value={settings.screenLightIntensity ?? .72} min={.2} max={1} step={.02} display={`${Math.round((settings.screenLightIntensity ?? .72) * 100)}%`} disabled={!settings.screenLight} onChange={(screenLightIntensity) => onSettingsChange({ screenLightIntensity })}/>
+        <NativeSelect label="Screen light tone" value={settings.screenLightTone ?? 'neutral'} disabled={!settings.screenLight} onChange={(event) => onSettingsChange({ screenLightTone: event.target.value as CaptureSettings['screenLightTone'] })}><option value="neutral">Neutral white</option><option value="warm">Warm</option><option value="cool">Cool</option></NativeSelect>
         <div className="tp-preflight-mic"><Button variant="outline" size="small" onClick={testMic} disabled={unavailable || cameraControlsDisabled || actionBusy}>{micTesting ? 'Listening…' : 'Test microphone'}</Button><span aria-hidden="true"><i style={{ width: `${Math.round(snapshot.level * 100)}%` }}/></span><Volume2 size={15}/></div>
         <details className="tp-preflight-advanced"><summary><RefreshCw size={14}/> Supported camera controls</summary><HardwareControls capabilities={snapshot.capabilities} settings={settings} onSettingsChange={onSettingsChange} disabled={cameraControlsDisabled}/></details>
         <Button variant="ghost" onClick={onRequestStorage} disabled={isSaving}><LockKeyhole size={15}/> Request persistent storage</Button>
