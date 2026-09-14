@@ -45,14 +45,14 @@ test.describe('phone first Script to Record to Review flow', () => {
       const content = canvas?.getAttribute('data-content-rect');
       return { rect: canvas?.getBoundingClientRect(), targetWidth: canvas?.width ?? 0, targetHeight: canvas?.height ?? 0, framingMode: canvas?.dataset.framingMode ?? '', rotation: canvas?.dataset.rotation ?? '', content: content ? JSON.parse(content) as { x: number; y: number; width: number; height: number } : null };
     });
-    expect(cameraFrame.framingMode).toBe('fit');
+    expect(cameraFrame.framingMode).toBe('fill');
     expect(cameraFrame.rotation).toBe('0');
     expect(cameraFrame.rect?.width ?? 0).toBeGreaterThan(0);
     expect(cameraFrame.rect?.height ?? 0).toBeGreaterThan(0);
-    expect(cameraFrame.content?.x ?? -1).toBeGreaterThanOrEqual(-1);
-    expect(cameraFrame.content?.y ?? -1).toBeGreaterThanOrEqual(-1);
-    expect((cameraFrame.content?.x ?? 0) + (cameraFrame.content?.width ?? 0)).toBeLessThanOrEqual(cameraFrame.targetWidth + 1);
-    expect((cameraFrame.content?.y ?? 0) + (cameraFrame.content?.height ?? 0)).toBeLessThanOrEqual(cameraFrame.targetHeight + 1);
+    expect(cameraFrame.content?.x ?? 1).toBeLessThanOrEqual(1);
+    expect(cameraFrame.content?.y ?? 1).toBeLessThanOrEqual(1);
+    expect((cameraFrame.content?.x ?? 0) + (cameraFrame.content?.width ?? 0)).toBeGreaterThanOrEqual(cameraFrame.targetWidth - 1);
+    expect((cameraFrame.content?.y ?? 0) + (cameraFrame.content?.height ?? 0)).toBeGreaterThanOrEqual(cameraFrame.targetHeight - 1);
     mediaCalls.push(...await page.evaluate(() => (window as typeof window & { __phoneFlowMediaCalls?: unknown[] }).__phoneFlowMediaCalls ?? []));
     expect(mediaCalls.length).toBeGreaterThan(0);
     const promptScroll = page.locator('.tp-reader-compact .tp-script-scroll');
@@ -67,6 +67,13 @@ test.describe('phone first Script to Record to Review flow', () => {
     await promptWords.first().scrollIntoViewIfNeeded();
     await promptWords.first().click();
     await expect(promptWords.first()).toHaveAttribute('aria-current', 'true');
+    const initialPromptSize = await page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-size'));
+    await page.getByRole('button', { name: 'Make transcript larger', exact: true }).click();
+    await expect.poll(() => page.locator('.tp-reader-compact .tp-reading-stage').evaluate((stage) => stage.style.getPropertyValue('--tp-size'))).not.toBe(initialPromptSize);
+    await page.getByRole('button', { name: 'Hide transcript', exact: true }).click();
+    await expect(page.locator('.tp-reader-compact')).toHaveClass(/tp-reader-hidden/);
+    await page.getByRole('button', { name: 'Show transcript', exact: true }).click();
+    await expect(page.locator('.tp-reader-compact')).not.toHaveClass(/tp-reader-hidden/);
     const recordGeometry = await page.evaluate(() => ({
       scrollHeight: document.scrollingElement?.scrollHeight ?? 0,
       viewportHeight: innerHeight,
@@ -108,6 +115,7 @@ test.describe('phone first Script to Record to Review flow', () => {
     for (const label of ['Speed', 'Text size', 'Reading line', 'Prompt window', 'Column width', 'Horizontal position', 'Line height', 'Background opacity']) await expect(promptDialog.getByRole('slider', { name: label, exact: true })).toBeVisible();
     await expect(promptDialog.getByText('Text alignment', { exact: true })).toBeVisible();
     await expect(promptDialog.getByRole('switch', { name: 'Dim surrounding text', exact: true })).toBeVisible();
+    await expect(promptDialog.getByRole('switch', { name: 'Show transcript', exact: true })).toBeVisible();
     await expect(promptDialog.getByRole('switch', { name: 'Show reading line', exact: true })).toBeVisible();
     const promptGeometryBefore = await page.evaluate(() => {
       const stage = document.querySelector('.tp-reader-compact .tp-reading-stage') as HTMLElement | null;

@@ -55,7 +55,10 @@ test.describe('native recording engine', () => {
     expect(landscapeDecoded.canDecodeAudio).toBe(true);
     expect(landscapeDecoded.videoWidth).toBeGreaterThan(landscapeDecoded.videoHeight);
 
-    const composed = await page.evaluate(() => window.recordingFixture.capture({ portrait: true, resolution: 1080, cameraId: '', microphoneId: '', facingMode: 'user', fps: 30, monitorAudio: false, controls: {} }, { forceLandscapeSource: true }));
+    const composed = await page.evaluate(async () => {
+      const { defaultCaptureSettings } = await import('/creator-autoedit/src/features/recording/index.ts');
+      return window.recordingFixture.capture({ ...defaultCaptureSettings, portrait: true, resolution: 1080 }, { forceLandscapeSource: true });
+    });
     const composedDecoded = await page.evaluate((id) => window.recordingFixture.inspect(id), composed.id);
     expect(composedDecoded.canDecodeVideo).toBe(true);
     expect(composedDecoded.canDecodeAudio).toBe(true);

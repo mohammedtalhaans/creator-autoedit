@@ -10,8 +10,8 @@ function streamWithSettings(video: Record<string, unknown>, audio: Record<string
 }
 
 describe('capture orientation negotiation', () => {
-  it('requests portrait dimensions using resolution as the short edge', () => {
-    const settings = { ...defaultCaptureSettings, portrait: true, resolution: 1080 as const, facingMode: 'user' as const };
+  it('requests portrait dimensions using resolution as the short edge in Full view', () => {
+    const settings = { ...defaultCaptureSettings, portrait: true, resolution: 1080 as const, facingMode: 'user' as const, framingMode: 'fit' as const };
     const size = resolutionConstraints(settings);
     expect(size.width?.ideal).toBe(1080);
     expect(size.height?.ideal).toBe(1920);
@@ -22,8 +22,8 @@ describe('capture orientation negotiation', () => {
     expect(video.facingMode).toEqual({ ideal: 'user' });
   });
 
-  it('inverts dimensions and aspect ratio for landscape', () => {
-    const settings = { ...defaultCaptureSettings, portrait: false, resolution: 720 as const, cameraId: 'camera-1' };
+  it('inverts dimensions and aspect ratio for landscape Full view', () => {
+    const settings = { ...defaultCaptureSettings, portrait: false, resolution: 720 as const, cameraId: 'camera-1', framingMode: 'fit' as const };
     const size = resolutionConstraints(settings);
     expect(size.width?.ideal).toBe(1280);
     expect(size.height?.ideal).toBe(720);
@@ -33,11 +33,20 @@ describe('capture orientation negotiation', () => {
     expect(video.deviceId).toEqual({ exact: 'camera-1' });
   });
 
-  it('keeps an aspect-ratio hint only for explicit Fill mode', () => {
+  it('asks the browser to crop and scale a native portrait stream in Fill mode', () => {
     const settings = { ...defaultCaptureSettings, portrait: true, framingMode: 'fill' as const };
     const video = buildMediaConstraints(settings).video as MediaTrackConstraints;
     expect(video.aspectRatio).toEqual({ ideal: 9 / 16 });
-    expect(video.resizeMode).toBeUndefined();
+    expect(video.resizeMode).toEqual({ ideal: 'crop-and-scale' });
+  });
+
+  it('uses no-bars portrait fill by default and migrates versionless stored settings once', () => {
+    expect(defaultCaptureSettings.framingMode).toBe('fill');
+    expect(defaultCaptureSettings.framingVersion).toBe(2);
+    const legacyFullView = { ...defaultCaptureSettings, framingMode: 'fit' as const };
+    delete legacyFullView.framingVersion;
+    expect(cloneCaptureSettings(legacyFullView).framingMode).toBe('fill');
+    expect(cloneCaptureSettings({ ...defaultCaptureSettings, framingMode: 'fit' }).framingMode).toBe('fit');
   });
 
   it('persists negotiated source dimensions and orientation metadata', () => {

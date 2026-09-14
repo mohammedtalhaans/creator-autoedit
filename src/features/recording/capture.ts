@@ -76,7 +76,9 @@ export function buildMediaConstraints(settings: CaptureSettings): MediaStreamCon
   const aspectRatio = settings.portrait ? 9 / 16 : 16 / 9;
   const video: MediaTrackConstraints = {
     ...size,
-    ...(settings.framingMode === 'fill' ? { aspectRatio: { ideal: aspectRatio } } : { resizeMode: { ideal: 'none' } }),
+    ...(settings.framingMode === 'fill'
+      ? { aspectRatio: { ideal: aspectRatio }, resizeMode: { ideal: 'crop-and-scale' } }
+      : { resizeMode: { ideal: 'none' } }),
     frameRate: { ideal: settings.fps },
     facingMode: settings.cameraId ? undefined : { ideal: settings.facingMode },
     ...(settings.cameraId ? { deviceId: { exact: settings.cameraId } } : {}),
@@ -597,10 +599,9 @@ class RecorderEngine implements Recorder {
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error) {
-      // A few older browsers reject the standard resizeMode hint even though
-      // they can satisfy the rest of the Full view request. Retry once without
-      // that hint, then expose the original permission/device error.
-      if (settings.framingMode !== 'fill' && constraints.video && typeof constraints.video === 'object') {
+      // Some browsers reject the standard resizeMode hint even though they can
+      // satisfy the remaining camera request. Retry once without that hint.
+      if (constraints.video && typeof constraints.video === 'object') {
         const fallbackVideo = { ...constraints.video } as MediaTrackConstraints & { resizeMode?: unknown };
         delete fallbackVideo.resizeMode;
         try {
@@ -623,6 +624,20 @@ class RecorderEngine implements Recorder {
       const error = new Error(`The selected input did not provide a ${missing} track. Audio-only capture is disabled.`);
       this.emit({ status: 'error', error: error.message, notice: 'Choose a camera and microphone that are both available.' });
       throw error;
+    }
+
+    // Keep the selfie camera at its widest exposed optical/digital setting.
+    // This avoids carrying a previous zoom value into a portrait recording.
+    if (settings.facingMode === 'user' && settings.framingMode === 'fill' && settings.controls.zoom === undefined) {
+      const track = videoTracks[0];
+      try {
+        const capabilities = track.getCapabilities() as MediaTrackCapabilities & { zoom?: { min?: number } };
+        const minimumZoom = capabilities.zoom?.min;
+        if (typeof minimumZoom === 'number' && Number.isFinite(minimumZoom))
+          await track.applyConstraints({ advanced: [{ zoom: minimumZoom } as MediaTrackConstraintSet] });
+      } catch {
+        // Zoom is optional and must never prevent the camera from opening.
+      }
     }
 
     this.stream = stream;

@@ -20,6 +20,7 @@ export const defaultPromptSettings: PromptSettings = {
   horizontalPosition: 0.5,
   windowHeight: 34,
   textAlign: 'left',
+  showPrompt: true,
   showReadingLine: true,
   readingLine: 16,
   textColor: '#ffffff',
@@ -46,13 +47,14 @@ export const defaultCaptureSettings: CaptureSettings = {
   fps: 30,
   portrait: true,
   monitorAudio: false,
-  framingMode: 'fit',
+  framingMode: 'fill',
+  framingVersion: 2,
   rotation: 'auto',
   controls: {},
 };
 
 export function clonePromptSettings(settings: PromptSettings = defaultPromptSettings): PromptSettings {
-  const cloned = structuredClone(settings) as PromptSettings & { windowHeight?: unknown; textAlign?: unknown; showReadingLine?: unknown };
+  const cloned = structuredClone(settings) as PromptSettings & { windowHeight?: unknown; textAlign?: unknown; showPrompt?: unknown; showReadingLine?: unknown };
   const rawWindowHeight = typeof cloned.windowHeight === 'number' && Number.isFinite(cloned.windowHeight) ? cloned.windowHeight : defaultPromptSettings.windowHeight;
   const isLegacyDefault = cloned.fontSize === 48
     && cloned.lineHeight === 1.35
@@ -93,6 +95,7 @@ export function clonePromptSettings(settings: PromptSettings = defaultPromptSett
     } : {}),
     windowHeight: isLegacyDefault ? defaultPromptSettings.windowHeight : Math.max(20, Math.min(65, rawWindowHeight)),
     textAlign: isLegacyDefault ? defaultPromptSettings.textAlign : cloned.textAlign === 'center' ? 'center' : 'left',
+    showPrompt: typeof cloned.showPrompt === 'boolean' ? cloned.showPrompt : defaultPromptSettings.showPrompt,
     showReadingLine: isLegacyDefault ? defaultPromptSettings.showReadingLine : typeof cloned.showReadingLine === 'boolean' ? cloned.showReadingLine : defaultPromptSettings.showReadingLine,
   };
 }
@@ -108,12 +111,18 @@ export function cloneCaptureSettings(settings: CaptureSettings = defaultCaptureS
     frameMode?: unknown;
   };
   const { look: _look, lookIntensity: _lookIntensity, portraitEffects: _portraitEffects, frameMode: _frameMode, ...capture } = cloned;
-  const framingMode = capture.framingMode === 'fill' ? 'fill' : 'fit';
+  // Versionless rows used Full view as the app default. Move them once to the
+  // phone-first no-bars default; settings changed after this release retain
+  // the user's explicit framing choice through framingVersion.
+  const framingMode = capture.framingVersion === 2
+    ? capture.framingMode === 'fit' ? 'fit' : 'fill'
+    : 'fill';
   const rotation = capture.rotation === 0 || capture.rotation === 90 || capture.rotation === 270 ? capture.rotation : 'auto';
   return {
     ...defaultCaptureSettings,
     ...capture,
     framingMode,
+    framingVersion: 2,
     rotation,
     controls: { ...defaultCaptureSettings.controls, ...(capture.controls ?? {}) },
   };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Camera, FlipHorizontal, LockKeyhole, Mic, Pause, Play, RefreshCw, Settings2, ShieldCheck, Square, Type, Video, Volume2, Zap } from 'lucide-react'
+import { ArrowLeft, Camera, Eye, EyeOff, FlipHorizontal, LockKeyhole, Mic, Minus, Pause, Play, Plus, RefreshCw, Settings2, ShieldCheck, Square, Type, Video, Volume2, Zap } from 'lucide-react'
 import type { CaptureSettings, PromptSettings, RecorderSnapshot, ScriptDocument, TakeRecord } from '../../types/recording'
 import { drawCaptureFrame, previewTransform } from '../../features/recording/capture'
 import { Alert, Badge, BottomSheet, Button, IconButton, NativeSelect, Slider, Switch } from '../ui/primitives'
@@ -79,7 +79,7 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
   const hasTorch = videoCapabilities.torch === true
   const torchOn = Boolean(settings.controls?.torch)
   const resolution = useMemo(() => formatResolution(settings), [settings])
-  const framingMode = settings.framingMode ?? 'fit'
+  const framingMode = settings.framingMode ?? 'fill'
   const rotation = settings.rotation ?? 'auto'
 
   useEffect(() => {
@@ -171,11 +171,17 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
       <IconButton className="tp-record-top-back" label="Back to script" onClick={onBack} disabled={!onBack || isSaving}><ArrowLeft size={20}/></IconButton>
       <div className="tp-record-title-block"><span className="mono">RECORD</span><strong>{script.title || 'Untitled script'}</strong></div>
       <Badge variant="outline" className="tp-step-badge">2 of 4</Badge>
-      <Badge variant="outline" className="tp-record-framing-badge"><span>{framingMode === 'fit' ? 'FULL VIEW' : 'FILL SCREEN'}</span><span className="mono">{resolution}</span></Badge>
+      <Badge variant="outline" className="tp-record-framing-badge"><span>{framingMode === 'fit' ? 'FULL VIEW' : 'PORTRAIT FILL'}</span><span className="mono">{resolution}</span></Badge>
       {hasTorch && <IconButton label={torchOn ? 'Turn flash off' : 'Turn flash on'} onClick={() => onSettingsChange({ controls: { ...settings.controls, torch: !torchOn } })} disabled={cameraControlsDisabled}><Zap size={18} fill={torchOn ? 'currentColor' : 'none'}/></IconButton>}
     </header>
 
     {reader && <div className="tp-record-reader-overlay" style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>{reader}</div>}
+    <div className="tp-record-prompt-tools" role="group" aria-label="Transcript display controls">
+      <IconButton label={script.settings.showPrompt === false ? 'Show transcript' : 'Hide transcript'} onClick={() => onPromptSettingsChange({ showPrompt: script.settings.showPrompt === false })}>{script.settings.showPrompt === false ? <Eye size={18}/> : <EyeOff size={18}/>}</IconButton>
+      <IconButton label="Make transcript smaller" onClick={() => onPromptSettingsChange({ fontSize: Math.max(28, script.settings.fontSize - 4) })} disabled={script.settings.fontSize <= 28}><Minus size={17}/></IconButton>
+      <span className="mono" aria-live="polite">{script.settings.fontSize}</span>
+      <IconButton label="Make transcript larger" onClick={() => onPromptSettingsChange({ fontSize: Math.min(84, script.settings.fontSize + 4) })} disabled={script.settings.fontSize >= 84}><Plus size={17}/></IconButton>
+    </div>
     <div className="tp-record-status" role="status" aria-live="polite"><span className={`tp-record-state-dot ${isRecording ? 'is-recording' : ''} ${isSaving ? 'is-saving' : ''}`} aria-hidden="true"/><span className="mono">{isRecording ? 'REC' : isSaving ? 'SAVING…' : isFailure ? 'RECOVERY' : unavailable ? 'READY TO OPEN' : 'READY'}</span>{isRecording && <span className="mono">{elapsedLabel(elapsed)}</span>}</div>
     {snapshot.error && <div className="tp-record-alert"><Alert title="Recording needs attention" variant="destructive">{snapshot.error}</Alert></div>}
 
@@ -205,13 +211,14 @@ export function RecordPanel({ snapshot, settings, script, reader, onBack, onSett
       <div className="tp-preflight-settings" style={{ display: 'grid', gap: 14 }}>
         <div className="tp-preflight-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <NativeSelect label="Orientation" value={settings.portrait ? 'portrait' : 'landscape'} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ portrait: event.target.value === 'portrait' })}><option value="portrait">Portrait · 9:16</option><option value="landscape">Landscape · 16:9</option></NativeSelect>
-          <NativeSelect label="Full view" value={framingMode} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ framingMode: event.target.value as CaptureSettings['framingMode'] })}><option value="fit">Full view</option><option value="fill">Fill screen</option></NativeSelect>
+          <NativeSelect label="Camera framing" value={framingMode} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ framingMode: event.target.value as CaptureSettings['framingMode'] })}><option value="fill">Portrait fill · no bars</option><option value="fit">Full view · may add bars</option></NativeSelect>
           <NativeSelect label="Orientation correction" value={rotation} disabled={cameraControlsDisabled} onChange={(event) => { const value = event.target.value; onSettingsChange({ rotation: value === 'auto' ? 'auto' : Number(value) as CaptureSettings['rotation'] }) }}><option value="auto">Camera default</option><option value="0">No rotation</option><option value="90">Rotate 90°</option><option value="270">Rotate 270°</option></NativeSelect>
           <NativeSelect label="Resolution" value={String(settings.resolution)} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ resolution: Number(event.target.value) as CaptureSettings['resolution'] })}><option value="720">720p</option><option value="1080">1080p</option><option value="2160">2160p</option></NativeSelect>
           <NativeSelect label="Frame rate" value={String(settings.fps)} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ fps: Number(event.target.value) as CaptureSettings['fps'] })}><option value="24">24 fps</option><option value="25">25 fps</option><option value="30">30 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></NativeSelect>
           <NativeSelect label="Camera" value={settings.cameraId} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ cameraId: event.target.value })}><option value="">Default camera</option>{snapshot.devices.filter((device) => device.kind === 'videoinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Camera'}</option>)}</NativeSelect>
           <NativeSelect label="Microphone" value={settings.microphoneId} disabled={cameraControlsDisabled} onChange={(event) => onSettingsChange({ microphoneId: event.target.value })}><option value="">Default microphone</option>{snapshot.devices.filter((device) => device.kind === 'audioinput').map((device) => <option key={device.deviceId} value={device.deviceId}>{device.label || 'Microphone'}</option>)}</NativeSelect>
         </div>
+        <p className="origin-field-help">Portrait fill asks the phone for a native 9:16 selfie stream and fills the recording if the browser returns a wider camera frame.</p>
         <Switch label="Monitor audio" description="Send a quiet feed to headphones." checked={settings.monitorAudio} disabled={cameraControlsDisabled} onChange={(monitorAudio) => onSettingsChange({ monitorAudio })}/>
         <div className="tp-preflight-mic"><Button variant="outline" size="small" onClick={testMic} disabled={unavailable || cameraControlsDisabled || actionBusy}>{micTesting ? 'Listening…' : 'Test microphone'}</Button><span aria-hidden="true"><i style={{ width: `${Math.round(snapshot.level * 100)}%` }}/></span><Volume2 size={15}/></div>
         <details className="tp-preflight-advanced"><summary><RefreshCw size={14}/> Supported camera controls</summary><HardwareControls capabilities={snapshot.capabilities} settings={settings} onSettingsChange={onSettingsChange} disabled={cameraControlsDisabled}/></details>

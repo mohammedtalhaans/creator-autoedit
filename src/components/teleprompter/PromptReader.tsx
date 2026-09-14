@@ -68,7 +68,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
   useEffect(() => {
     const id = window.requestAnimationFrame(() => scrollToToken(cursor, 'auto'))
     return () => window.cancelAnimationFrame(id)
-  }, [cursor, scrollToToken, settings.columnWidth, settings.fontFamily, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.margin, settings.marginLeft, settings.marginRight, settings.windowHeight, settings.textAlign])
+  }, [cursor, scrollToToken, settings.columnWidth, settings.fontFamily, settings.fontSize, settings.letterSpacing, settings.lineHeight, settings.margin, settings.marginLeft, settings.marginRight, settings.windowHeight, settings.textAlign, settings.showPrompt])
 
   const setPlayingState = useCallback((next: boolean) => {
     setPlaying(next)
@@ -178,7 +178,7 @@ export function PromptReader({ script, settings, onCursorChange, compact = false
     fontWeight: settings.bold ? 650 : 450,
   } as CSSProperties
 
-  return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''} ${hideControls ? 'tp-reader-no-controls' : ''}`}>
+  return <div className={`tp-reader-wrap ${compact ? 'tp-reader-compact' : ''} ${hideControls ? 'tp-reader-no-controls' : ''} ${compact && settings.showPrompt === false ? 'tp-reader-hidden' : ''}`} aria-hidden={compact && settings.showPrompt === false ? 'true' : undefined}>
     <div className="tp-reader-head">
       <div className="tp-reader-meta"><span className="tp-live-dot"/><span className="mono">{modeLabel}</span><span className="tp-divider"/><span className="tp-reader-word-count">{parsed.words.toLocaleString()} spoken words</span>{compact && <span className="tp-reader-gesture-hint">Scroll · tap a word</span>}</div>
       <div className="tp-reader-stats"><span className="mono">{formatDuration(timing.estimatedSeconds)}</span></div>
